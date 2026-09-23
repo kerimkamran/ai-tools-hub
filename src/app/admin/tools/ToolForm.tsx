@@ -8,7 +8,7 @@ import type { Tool } from "@/lib/types";
 const FIELD =
   "mt-1 w-full rounded-md border px-3 py-2 text-sm outline-none";
 const FIELD_STYLE = {
-  borderColor: "var(--line-strong)",
+  borderColor: "var(--control-border)",
   background: "var(--surface)",
   color: "var(--foreground)",
 };

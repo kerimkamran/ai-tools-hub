@@ -27,7 +27,7 @@ export default async function AdminPage() {
             <button
               type="submit"
               className="rounded-md border px-4 py-2 text-sm"
-              style={{ borderColor: "var(--line-strong)", color: "var(--muted)" }}
+              style={{ borderColor: "var(--control-border)", color: "var(--muted)" }}
             >
               Sign out
             </button>
@@ -60,7 +60,7 @@ export default async function AdminPage() {
               <Link
                 href={`/admin/tools/${t.id}`}
                 className="rounded border px-3 py-1.5 text-xs"
-                style={{ borderColor: "var(--line-strong)", color: "var(--foreground)" }}
+                style={{ borderColor: "var(--control-border)", color: "var(--foreground)" }}
               >
                 Edit
               </Link>
@@ -69,7 +69,7 @@ export default async function AdminPage() {
                 <button
                   type="submit"
                   className="rounded border px-3 py-1.5 text-xs"
-                  style={{ borderColor: "var(--line-strong)", color: "var(--critical)" }}
+                  style={{ borderColor: "var(--control-border)", color: "var(--critical)" }}
                 >
                   Delete
                 </button>

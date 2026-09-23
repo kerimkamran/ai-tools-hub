@@ -1,7 +1,11 @@
 import { ACCESS_LABEL, type ToolAccess } from "@/lib/types";
 
 /**
- * Tells the visitor what they will meet BEFORE they click.
+  * Tells the visitor what they will meet BEFORE they click.
+ *
+ * The border uses --line-strong rather than --control-border because this is
+ * NOT an interactive control: the badge text carries the meaning, so WCAG
+ * 1.4.11 does not apply to its outline. Its text colour does meet 4.5:1.
  *
  * This is not decoration. For a tool with a domain allowlist, a stranger
  * cannot get in at all, and discovering that after a page load, a cold start

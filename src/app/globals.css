@@ -11,7 +11,10 @@
 
    Contrast note: --brand (#c96f42) is ~3.4:1 on white and therefore is NOT
    safe for body text. Use --brand-deep (#8b4423, ~7.4:1) whenever the accent
-   carries text. --faint is ~3.5:1: large or non-essential text only.
+   carries text. --faint was raised from Vantage's #8a8a8a/#757575 to reach
+   4.5:1 -- it labels the category and destination host, which is real text,
+   not decoration. --control-border exists so anything the user operates meets
+   WCAG 1.4.11 (3:1) while --line/--line-strong stay hairline for dividers.
 --------------------------------------------------------------------------- */
 :root {
   --background: #ffffff;
@@ -19,10 +22,13 @@
   --surface-sunken: #fafafa;
   --foreground: #1a1a1a;
   --muted: #6b6b6b;
-  --faint: #8a8a8a;
+  --faint: #707070;
   --line: #ececec;
   --line-soft: #f2f2f2;
   --line-strong: #d8d8d8;
+  /* Interactive-control borders must meet WCAG 1.4.11 (3:1). --line-strong is
+     hairline and decorative; this token is for anything the user operates. */
+  --control-border: #868686;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
@@ -45,10 +51,11 @@
   --surface-sunken: #0d0d0d;
   --foreground: #f0f0f0;
   --muted: #a0a0a0;
-  --faint: #757575;
+  --faint: #888888;
   --line: #2a2a2a;
   --line-soft: #212121;
   --line-strong: #3a3a3a;
+  --control-border: #646464;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
@@ -75,6 +82,7 @@
   --color-line: var(--line);
   --color-line-soft: var(--line-soft);
   --color-line-strong: var(--line-strong);
+  --color-control-border: var(--control-border);
   --color-brand: var(--brand);
   --color-brand-light: var(--brand-light);
   --color-brand-deep: var(--brand-deep);
@@ -131,5 +139,16 @@ body {
   -ms-overflow-style: none;
 }
 .no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* type="search" gives us semantics and the right mobile keyboard, but WebKit
+   also draws its own clear button -- which would sit next to the one we
+   render, giving the field two clear controls. Ours stays: it is keyboard
+   reachable, has an accessible name, and also resets the category filter. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
   display: none;
 }

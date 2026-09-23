@@ -17,10 +17,20 @@ import type { ToolHealth } from "@/lib/types";
  *  - Results are cached, so repeated hits do not produce repeated outbound
  *    requests.
  *
+ * Cache TTL is deliberately long (30 min, not 5).
+ *
+ * Measured: SparkLab's health endpoint answers in ~21s from cold, because
+ * Render's free tier sleeps after roughly 15 minutes idle. A probe does not
+ * just observe that -- it WAKES the instance, and our 3s timeout aborts long
+ * before the answer arrives, so a short TTL would burn the tool's free
+ * instance-hours to learn nothing. Thirty minutes keeps the badge useful for
+ * tools that stay up, while making it impossible for this route to act as an
+ * accidental keep-warm cron -- which was an explicit product decision.
+ *
  * Known limit: hostname checks cannot stop a DNS name that resolves to a
  * private address. The controls above are what contain that residual risk.
  */
-export const revalidate = 300;
+export const revalidate = 1800;
 
 const TIMEOUT_MS = 3000;
 
@@ -70,7 +80,7 @@ export async function GET() {
     { tools: result },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
         "X-Robots-Tag": "noindex",
       },
     }

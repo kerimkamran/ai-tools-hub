@@ -40,7 +40,7 @@ export function CategoryChips({
             className="shrink-0 rounded-full border px-3.5 text-sm transition-colors duration-150"
             style={{
               minHeight: 44,
-              borderColor: selected ? "var(--foreground)" : "var(--line-strong)",
+              borderColor: selected ? "var(--foreground)" : "var(--control-border)",
               background: selected ? "var(--foreground)" : "transparent",
               color: selected ? "var(--background)" : "var(--muted)",
             }}

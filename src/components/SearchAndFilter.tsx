@@ -92,7 +92,7 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
         </label>
         <div
           className="flex items-center gap-2.5 rounded-full border px-4 transition-colors"
-          style={{ height: 48, borderColor: "var(--line-strong)", background: "var(--surface)" }}
+          style={{ height: 48, borderColor: "var(--control-border)", background: "var(--surface)" }}
         >
           <svg
             aria-hidden="true"
@@ -153,7 +153,7 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
                 type="button"
                 onClick={reset}
                 className="mt-3 rounded-full border px-4 py-2 text-sm hover:opacity-70"
-                style={{ borderColor: "var(--line-strong)", color: "var(--foreground)" }}
+                style={{ borderColor: "var(--control-border)", color: "var(--foreground)" }}
               >
                 {strings.clear}
               </button>

@@ -1,4 +1,5 @@
 import { login } from "./actions";
+import { hasSupabaseConfig } from "@/lib/supabase/server";
 
 export default async function LoginPage({
   searchParams,
@@ -6,6 +7,20 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+
+  // An unconfigured deployment should say so plainly rather than offer a
+  // form that cannot work. Says nothing about WHY -- no env var names, no
+  // stack traces -- because this page is reachable by anyone.
+  if (!hasSupabaseConfig()) {
+    return (
+      <main className="mx-auto flex min-h-screen max-w-[360px] flex-col justify-center px-4">
+        <h1 className="text-xl font-semibold tracking-tight">Admin</h1>
+        <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+          Not available on this deployment.
+        </p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex min-h-screen max-w-[360px] flex-col justify-center px-4">
@@ -26,7 +41,7 @@ export default async function LoginPage({
             required
             autoComplete="username"
             className="mt-1 w-full rounded-md border px-3 py-2 text-sm outline-none"
-            style={{ borderColor: "var(--line-strong)", background: "var(--surface)" }}
+            style={{ borderColor: "var(--control-border)", background: "var(--surface)" }}
           />
         </div>
         <div>
@@ -40,7 +55,7 @@ export default async function LoginPage({
             required
             autoComplete="current-password"
             className="mt-1 w-full rounded-md border px-3 py-2 text-sm outline-none"
-            style={{ borderColor: "var(--line-strong)", background: "var(--surface)" }}
+            style={{ borderColor: "var(--control-border)", background: "var(--surface)" }}
           />
         </div>
 

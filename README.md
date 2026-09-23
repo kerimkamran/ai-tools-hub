@@ -1,36 +1,117 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI Tools Hub
 
-## Getting Started
+One public page that lists independently built AI tools, with search, category
+filters and cards that open the real applications.
 
-First, run the development server:
+The hub is a **directory, not a platform**. Each tool is its own application on
+its own host. Nothing is proxied, framed, or served through the hub, and no
+session is shared with it. If the hub is down, every tool still works.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## Why it links out instead of proxying
+
+Three facts about the real tools, verified against their source and against
+production, decided the architecture:
+
+| Fact | Consequence |
+|---|---|
+| Vantage sends `X-Frame-Options: DENY` and CSP `frame-ancestors 'none'` | Iframe embedding is impossible, not merely unwise |
+| Vantage sets no `basePath` | Mounted under a sub-path its `/_next/*` requests would resolve against the hub's build — the page would render, then fail to hydrate |
+| The tools are on different hosts and runtimes (Vercel/Next, Render/Express) and each has its own login | There is no single runtime to merge into, and no session to share |
+
+So cards are plain `<a target="_blank" rel="noopener">` links to each tool's
+canonical URL. Because the destination is **data** (the `url` column), moving a
+tool to a custom subdomain later is one edit in the admin UI — no code change.
+
+## Architecture
+
+```
+Public visitor ──► AI Tools Hub (Next.js, Vercel)
+  (no account)      static / ISR · no cookies · no middleware on public routes
+                         │
+        ┌────────────────┼──────────────────┐
+        │                │                  │
+    /  catalog      /api/health         /admin  (gated)
+    /tools/[slug]   cached 30 min       proxy scoped HERE only
+        └────────────────┴──────────────────┘
+                         ▼
+              Supabase Postgres (tools + RLS)
+              anon key = read · service role = write, SERVER ONLY
+
+    ── plain links ──►  Vantage · SparkLab · (CV Screener, planned)
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Invariants
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+These are load-bearing. Breaking one is a defect, not a preference.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. **The public catalog is statically rendered and never touches a cookie.**
+   Reading cookies or `searchParams` in `src/app/page.tsx` would opt the route
+   into dynamic rendering and destroy edge-cacheable delivery. The `?q=` deep
+   link is therefore read on the client.
+2. **`src/proxy.ts` matches `/admin` and nothing else.** Widening it puts a
+   Supabase session round-trip in front of the catalog.
+3. **The service-role key is unreachable from client code.**
+   `src/lib/supabase/admin.ts` imports `server-only`, so a client import is a
+   *build error*. Verified — the build exits 1.
+4. **The proxy is not the auth boundary.** Every admin page and Server Action
+   calls `requireAdmin()` / `getAdminOrNull()` itself, using `getUser()` (which
+   verifies the JWT) rather than `getSession()`.
+5. **`/api/health` only ever fetches `healthUrl` values already in the
+   registry**, re-validated, https-only, private/loopback/IP hosts refused,
+   `redirect: "manual"`, body never read.
+6. **No route accepts a destination URL from a query parameter.** If click
+   tracking is ever added it must be `/go/[toolId]`, resolved server-side.
+7. **The page works with JavaScript disabled** — the full grid and every link
+   are in the server-rendered HTML.
+8. **Adding a tool requires no code change**, only a registry row.
 
-## Learn More
+## Setup
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm install
+cp .env.example .env.local   # then fill in the Supabase values
+npm run dev
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Then in the Supabase SQL editor, run `supabase/migrations/0001_tools.sql`
+followed by `supabase/seed.sql`, and create exactly one admin user under
+Authentication → Users. There is no signup route: the admin account is created
+by hand, on purpose.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Without Supabase configured the catalog still renders, served from the static
+snapshot in `src/lib/config/fallback-tools.ts`.
 
-## Deploy on Vercel
+## Adding a tool
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Sign in at `/admin`, click **Add tool**, fill the form. It appears on the
+catalog within seconds — no deploy.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Descriptions are **public writing**: this site is indexed, so no internal
+codenames, client names, department detail or staging URLs belong in them. A
+tool that must not be publicly listed gets `status: unlisted`, which keeps it
+out of the catalog, the sitemap and search results while leaving its direct
+link working.
+
+## Tool statuses
+
+| Status | In catalog | Clickable | In sitemap |
+|---|---|---|---|
+| `published` | yes | yes | yes |
+| `planned` | yes, dimmed | no | yes |
+| `unlisted` | no | via direct link | no |
+| `archived` | no | no | no |
+
+## Notes
+
+- **Next.js is pinned to 16.3.6, not 16.2.9.** 16.2.9 carries a critical
+  advisory set including an App Router middleware/proxy bypass and
+  unauthenticated disclosure of Server Function endpoints — both of which bear
+  directly on the admin gate.
+- **SparkLab cold-starts in ~21 s** (measured) because Render's free tier
+  sleeps when idle. The health probe's TTL is 30 minutes specifically so it
+  cannot become an accidental keep-warm cron burning that tool's free hours.
+- Design tokens are ported from Vantage's "Field" system so the hub and the
+  tools read as one product. `--brand` (#c96f42) is ~3.4:1 on white and is not
+  safe for body text; `--brand-deep` (#8b4423) is the accent-text token.

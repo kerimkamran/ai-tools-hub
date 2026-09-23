@@ -16,7 +16,14 @@ export async function updateAdminSession(request: NextRequest) {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anon) return response;
+  if (!url || !anon) {
+    // Fail CLOSED. An unconfigured deployment must not leave /admin open.
+    if (request.nextUrl.pathname === "/admin/login") return response;
+    const to = request.nextUrl.clone();
+    to.pathname = "/admin/login";
+    to.search = "";
+    return NextResponse.redirect(to);
+  }
 
   const supabase = createServerClient(url, anon, {
     cookies: {
