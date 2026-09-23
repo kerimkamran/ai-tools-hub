@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { displayHost, type Tool } from "@/lib/types";
+import { displayHost, ACCESS_LABEL, type Tool } from "@/lib/types";
 import { strings } from "@/lib/strings";
 import { AccessBadge, PlannedBadge } from "./AccessBadge";
 import { HealthDot } from "./HealthDot";
@@ -7,9 +7,8 @@ import { HealthDot } from "./HealthDot";
 const CARD_BASE =
   "group relative flex h-full flex-col gap-3 rounded-lg border p-4 transition-[border-color,box-shadow] duration-150";
 
-function Body({ tool }: { tool: Tool }) {
+function Body({ tool, planned }: { tool: Tool; planned: boolean }) {
   const host = displayHost(tool.url);
-  const planned = tool.status === "planned";
 
   return (
     <>
@@ -57,7 +56,7 @@ function Body({ tool }: { tool: Tool }) {
       )}
 
       {/* Reserved row: host + health. Fixed height so the async health badge
-          cannot cause layout shift when it resolves. */}
+          cannot shift layout when it resolves. */}
       <div className="flex h-4 items-center justify-between gap-2">
         <span className="truncate text-[11px]" style={{ color: "var(--faint)" }}>
           {planned ? "" : host}
@@ -73,34 +72,67 @@ export function ToolCard({ tool }: { tool: Tool }) {
 
   if (planned) {
     return (
+      /**
+       * Dimmed, but NOT with opacity.
+       *
+       * `opacity-60` on the whole card multiplied through to the text and
+       * dropped it to roughly 2:1 -- well under AA, and the card that most
+       * needs to be readable is the one explaining a tool does not exist yet.
+       * The muted look now comes from a sunken background and normal-contrast
+       * text instead.
+       */
       <div
         aria-disabled="true"
-        className={`${CARD_BASE} opacity-60`}
-        style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+        className={CARD_BASE}
+        style={{ borderColor: "var(--line)", background: "var(--surface-sunken)" }}
       >
-        <Body tool={tool} />
+        <Body tool={tool} planned />
       </div>
     );
   }
+
+  /**
+   * The accessible name is built explicitly, because aria-label REPLACES the
+   * element's inner text for assistive tech. The first version named only the
+   * tool and its tagline, which silently hid the access badge and the access
+   * note -- and the access note is the single most important thing on the
+   * card, since it is what tells someone they cannot get in at all.
+   */
+  const label = [
+    strings.openTool(tool.name),
+    tool.tagline,
+    ACCESS_LABEL[tool.access],
+    tool.accessNote,
+    `on ${displayHost(tool.url)}`,
+    `(${strings.opensInNewTab})`,
+  ]
+    .filter(Boolean)
+    // Trim any trailing period before joining: taglines are written as
+    // sentences, and a screen reader voices ".." as an awkward extra pause.
+    .map((part) => {
+      const text = String(part).trimEnd();
+      return text.endsWith(".") ? text.slice(0, -1) : text;
+    })
+    .join(". ");
 
   return (
     <a
       href={tool.url}
       target="_blank"
       rel="noopener"
-      aria-label={`${strings.openTool(tool.name)} — ${tool.tagline} (${strings.opensInNewTab})`}
+      aria-label={label}
       className={`${CARD_BASE} hover:shadow-[var(--shadow-sm)]`}
       style={{ borderColor: "var(--line)", background: "var(--surface)" }}
       data-tool-card
     >
-      <Body tool={tool} />
+      <Body tool={tool} planned={false} />
     </a>
   );
 }
 
 /**
  * Secondary affordance. The card's primary action goes straight to the tool --
- * one click, no interstitial -- so this exists for deep links, sharing and as
+ * one click, no interstitial -- so this exists for deep links, sharing, and as
  * the canonical URL crawlers see. It sits OUTSIDE the card anchor because a
  * link inside a link is invalid HTML and breaks keyboard navigation.
  */

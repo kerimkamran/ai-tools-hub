@@ -45,6 +45,10 @@ export function ToolForm({ tool }: { tool: Tool | null }) {
 
   return (
     <form action={action} className="mt-8 space-y-5">
+      {/* The id the server will UPDATE. Sent from the route, not the visible
+          id input -- readOnly is a client hint that still submits, so the
+          server must not trust it. Absent on create, which selects insert(). */}
+      {tool && <input type="hidden" name="originalId" value={tool.id} />}
       {state.error && (
         <p role="alert" className="rounded-md border px-3 py-2 text-sm"
            style={{ borderColor: "var(--critical)", color: "var(--critical)" }}>
@@ -71,7 +75,14 @@ export function ToolForm({ tool }: { tool: Tool | null }) {
           Shown on the detail page and used as the meta description.
         </p>
         <textarea id="description" name="description" rows={4}
-          defaultValue={tool?.description} className={FIELD} style={FIELD_STYLE} />
+          defaultValue={tool?.description} className={FIELD} style={FIELD_STYLE}
+          aria-invalid={e.description ? true : undefined}
+          aria-describedby={e.description ? "description-error" : undefined} />
+        {e.description && (
+          <p id="description-error" role="alert" className="mt-1 text-xs" style={{ color: "var(--critical)" }}>
+            {e.description}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -82,7 +93,7 @@ export function ToolForm({ tool }: { tool: Tool | null }) {
       </div>
 
       <Field label="Tags" name="tags" defaultValue={tool?.tags.join(", ")}
-        hint="Comma-separated. Searched, never displayed." />
+        hint="Comma-separated. Searched but not shown on the card — though they are in the page source, so treat them as public." />
 
       <Field label="URL" name="url" type="url" defaultValue={tool?.url} error={e.url}
         hint="Where the card points. Must be https. Required to publish." />
@@ -95,7 +106,8 @@ export function ToolForm({ tool }: { tool: Tool | null }) {
         <div>
           <label htmlFor="access" className="block text-sm font-medium">Access</label>
           <select id="access" name="access" defaultValue={tool?.access ?? "sign-in"}
-            className={FIELD} style={FIELD_STYLE}>
+            className={FIELD} style={FIELD_STYLE}
+            aria-invalid={e.access ? true : undefined}>
             <option value="open">Open</option>
             <option value="sign-in">Sign-in required</option>
             <option value="invite-only">Invite only</option>
@@ -104,7 +116,8 @@ export function ToolForm({ tool }: { tool: Tool | null }) {
         <div>
           <label htmlFor="status" className="block text-sm font-medium">Status</label>
           <select id="status" name="status" defaultValue={tool?.status ?? "planned"}
-            className={FIELD} style={FIELD_STYLE}>
+            className={FIELD} style={FIELD_STYLE}
+            aria-invalid={e.status ? true : undefined}>
             <option value="published">Published — in the catalog</option>
             <option value="planned">Planned — shown, not clickable</option>
             <option value="unlisted">Unlisted — direct link only</option>

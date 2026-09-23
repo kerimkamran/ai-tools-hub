@@ -3,11 +3,16 @@ import { ToolCard, ToolDetailsLink } from "./ToolCard";
 
 /**
  * Fluid grid: 1 column on phones, 2 on tablets, 3 on desktop, sized by
- * auto-fill rather than fixed breakpoints so it degrades smoothly in between.
+ * auto-fill rather than fixed breakpoints so it degrades smoothly between them.
+ *
+ * role="list" is explicit because `list-style: none` makes Safari/VoiceOver
+ * drop list semantics entirely, which would cost screen-reader users the
+ * "list of N items" announcement and item positions.
  */
 export function ToolGrid({ tools }: { tools: Tool[] }) {
   return (
     <ul
+      role="list"
       className="grid list-none gap-4 p-0"
       style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}
     >

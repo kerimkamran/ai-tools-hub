@@ -55,10 +55,14 @@ create trigger tools_set_updated_at
 --
 -- This is the security boundary for the catalog -- not a check in the UI.
 --
--- Read: anon and authenticated may SELECT rows the public is meant to see.
---       `unlisted` is readable by slug so a direct link still works, but it
---       is excluded from the catalog and sitemap in application code.
---       `archived` is readable by nobody but the service role.
+-- Read: anon and authenticated may SELECT only rows meant to be LISTED.
+--       'unlisted' is deliberately NOT here. The anon key is public and
+--       speaks PostgREST, so any policy that admits a status also lets
+--       anyone enumerate every row with it -- which is the opposite of
+--       what 'unlisted' means. Unlisted rows are resolved server-side by
+--       slug (see src/lib/registry.ts), so a direct link still works while
+--       the set stays unenumerable.
+--       'archived' is readable by nobody but the service role.
 --
 -- Write: NO insert/update/delete policy exists. With RLS enabled and no
 --        permissive policy, those operations are denied for every role that
@@ -73,4 +77,4 @@ create policy tools_public_read
   on public.tools
   for select
   to anon, authenticated
-  using (status in ('published', 'planned', 'unlisted'));
+  using (status in ('published', 'planned'));

@@ -1,5 +1,8 @@
-import { login } from "./actions";
+import { login, logout } from "./actions";
 import { hasSupabaseConfig } from "@/lib/supabase/server";
+import { isSignedInButNotAdmin } from "@/lib/auth";
+
+const SHELL = "mx-auto flex min-h-screen max-w-[360px] flex-col justify-center px-4";
 
 export default async function LoginPage({
   searchParams,
@@ -8,12 +11,12 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams;
 
-  // An unconfigured deployment should say so plainly rather than offer a
-  // form that cannot work. Says nothing about WHY -- no env var names, no
-  // stack traces -- because this page is reachable by anyone.
+  // An unconfigured deployment says so plainly rather than offering a form
+  // that cannot work. It says nothing about WHY -- no env var names, no stack
+  // traces -- because this page is reachable by anyone.
   if (!hasSupabaseConfig()) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-[360px] flex-col justify-center px-4">
+      <main className={SHELL}>
         <h1 className="text-xl font-semibold tracking-tight">Admin</h1>
         <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
           Not available on this deployment.
@@ -22,8 +25,30 @@ export default async function LoginPage({
     );
   }
 
+  // Signed in, but not on the allowlist. Without this branch the proxy would
+  // send them to /admin and requireAdmin() would send them back here, forever.
+  if (await isSignedInButNotAdmin()) {
+    return (
+      <main className={SHELL}>
+        <h1 className="text-xl font-semibold tracking-tight">No access</h1>
+        <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
+          You are signed in, but this account cannot manage the catalog.
+        </p>
+        <form action={logout} className="mt-6">
+          <button
+            type="submit"
+            className="w-full rounded-md border px-4 text-sm"
+            style={{ minHeight: 44, borderColor: "var(--control-border)", color: "var(--foreground)" }}
+          >
+            Sign out
+          </button>
+        </form>
+      </main>
+    );
+  }
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-[360px] flex-col justify-center px-4">
+    <main className={SHELL}>
       <h1 className="text-xl font-semibold tracking-tight">Admin</h1>
       <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
         Sign in to manage the catalog.

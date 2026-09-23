@@ -57,7 +57,11 @@ export function checkPublicHttpsUrl(raw: string): UrlCheck {
     return { ok: false, reason: "URLs with embedded credentials are not allowed." };
   }
 
-  const host = url.hostname;
+  // Strip a trailing dot before matching. "localhost." and
+  // "box.internal." are the same hosts to a resolver but would sail
+  // past patterns anchored with $.
+  const hostRaw = url.hostname.toLowerCase();
+  const host = hostRaw.endsWith(".") ? hostRaw.slice(0, -1) : hostRaw;
 
   if (IPV4_LITERAL.test(host) || host.startsWith("[")) {
     return { ok: false, reason: "IP addresses are not allowed; use a hostname." };
@@ -109,7 +113,11 @@ export const toolInputSchema = z.object({
   category: z.string().trim().min(1).max(40),
   tags: z.array(z.string().trim().min(1).max(30)).max(12).default([]),
   icon: z.string().trim().max(200).default(""),
-  url: safeUrl,
+  // Optional here, because a `planned` tool legitimately has no URL yet.
+  // "Published implies a URL" is enforced in saveTool AND by a CHECK
+  // constraint in the migration -- making it mandatory in the schema would
+  // make it impossible to save a coming-soon card at all.
+  url: z.union([safeUrl, z.literal("")]).default(""),
   healthUrl: safeUrl.nullable().default(null),
   access: z.enum(["open", "sign-in", "invite-only"]),
   accessNote: z.string().trim().max(120).nullable().default(null),

@@ -1,16 +1,33 @@
 import type { Tool } from "./types";
 
 /**
- * Lowercase, strip diacritics, collapse whitespace.
+ * Azerbaijani letters that Unicode normalisation does NOT fold.
  *
- * NFKD + combining-mark removal means "Azerbaijan" matches "Azərbaycan"-style
- * input, which matters for an AZ/RU/EN audience even while the UI is English.
+ * NFKD decomposes a letter into a base plus combining marks, so stripping the
+ * marks handles ü -> u, ö -> o, ç -> c, ş -> s, ğ -> g. But these are distinct
+ * letters rather than decorated ones, and NFKD leaves them untouched:
+ *
+ *   ə  U+0259  LATIN SMALL LETTER SCHWA
+ *   ı  U+0131  LATIN SMALL LETTER DOTLESS I
+ *
+ * Without this map, typing "azerbaycan" would not find "Azərbaycan" -- which
+ * matters, because the audience for these tools types it both ways.
+ */
+const EXTRA_FOLDS: Record<string, string> = {
+  "ə": "e", // ə schwa
+  "ı": "i", // ı dotless i
+  "ǝ": "e", // ǝ turned e
+};
+
+/**
+ * Lowercase, fold the letters above, strip diacritics, collapse whitespace.
  */
 export function normalize(s: string): string {
-  return s
+  let folded = "";
+  for (const ch of s.toLowerCase()) folded += EXTRA_FOLDS[ch] ?? ch;
+  return folded
     .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
+    .replace(/\p{M}/gu, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -45,8 +62,8 @@ export function filterTools(
   });
 }
 
-/** Categories actually present in the data -- never a hardcoded list that
- *  can drift away from what is published. */
+/** Categories actually present in the data -- never a hardcoded list that can
+ *  drift away from what is published. */
 export function categoriesOf(tools: Tool[]): string[] {
   return Array.from(new Set(tools.map((t) => t.category).filter(Boolean))).sort(
     (a, b) => a.localeCompare(b)

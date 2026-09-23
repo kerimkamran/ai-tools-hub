@@ -42,29 +42,25 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
     }
   }, []);
 
-  // "/" focuses search from anywhere; Escape clears and blurs.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      const el = e.target as HTMLElement | null;
-      const typing =
-        el &&
-        (el.tagName === "INPUT" ||
-          el.tagName === "TEXTAREA" ||
-          el.isContentEditable);
-
-      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        inputRef.current?.focus();
-      } else if (e.key === "Escape" && el === inputRef.current) {
-        setQuery("");
-        inputRef.current?.blur();
-      }
+  /**
+   * Escape clears the field.
+   *
+   * There is deliberately NO global "/" shortcut. A single-character shortcut
+   * that is live across the whole document fails WCAG 2.1.4 (Character Key
+   * Shortcuts, Level A) unless it can be turned off, remapped, or is active
+   * only on focus -- and speech-input users hit these constantly, because
+   * dictation emits stray characters. This handler is bound to the input, so
+   * it only fires when the input already has focus, which is the "active only
+   * on focus" exception. Desktop autofocus covers the same need anyway.
+   */
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setQuery("");
+      inputRef.current?.blur();
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Shareable, back-button-safe URL without adding a history entry per keystroke.
+  // Shareable, back-button-safe URL without a history entry per keystroke.
   useEffect(() => {
     const url = new URL(window.location.href);
     if (query) url.searchParams.set("q", query);
@@ -72,11 +68,19 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
     window.history.replaceState(null, "", url.toString());
   }, [query]);
 
-  // Debounced announcement only.
+  /**
+   * Announcement includes the active filters, not just the count. Keyed on
+   * the count alone, switching between two filters that happen to match the
+   * same number of tools produced no announcement at all -- a screen-reader
+   * user would hear nothing and assume nothing had changed.
+   */
   useEffect(() => {
-    const t = setTimeout(() => setAnnounced(strings.resultCount(results.length)), 120);
+    const parts = [strings.resultCount(results.length)];
+    if (query) parts.push(`for "${query}"`);
+    if (category) parts.push(`in ${category}`);
+    const t = setTimeout(() => setAnnounced(parts.join(" ")), 150);
     return () => clearTimeout(t);
-  }, [results.length]);
+  }, [results.length, query, category]);
 
   const reset = useCallback(() => {
     setQuery("");
@@ -86,55 +90,60 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
 
   return (
     <>
-      <div className="mx-auto w-full max-w-[560px]">
-        <label htmlFor="tool-search" className="sr-only">
-          {strings.searchLabel}
-        </label>
-        <div
-          className="flex items-center gap-2.5 rounded-full border px-4 transition-colors"
-          style={{ height: 48, borderColor: "var(--control-border)", background: "var(--surface)" }}
-        >
-          <svg
-            aria-hidden="true"
-            viewBox="0 0 16 16"
-            className="h-4 w-4 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            style={{ color: "var(--faint)" }}
+      <search>
+        <div className="mx-auto w-full max-w-[560px]">
+          <label htmlFor="tool-search" className="sr-only">
+            {strings.searchLabel}
+          </label>
+          <div
+            className="flex items-center gap-2.5 rounded-full border pl-4 pr-1.5"
+            style={{ height: 48, borderColor: "var(--control-border)", background: "var(--surface)" }}
           >
-            <circle cx="7" cy="7" r="4.5" />
-            <path d="m10.5 10.5 3 3" strokeLinecap="round" />
-          </svg>
-          <input
-            id="tool-search"
-            ref={inputRef}
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={strings.searchPlaceholder}
-            autoComplete="off"
-            spellCheck={false}
-            className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
-            style={{ color: "var(--foreground)" }}
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={reset}
-              aria-label={strings.clear}
-              className="shrink-0 rounded-full px-1 text-lg leading-none hover:opacity-70"
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+              className="h-4 w-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
               style={{ color: "var(--faint)" }}
             >
-              &times;
-            </button>
-          )}
+              <circle cx="7" cy="7" r="4.5" />
+              <path d="m10.5 10.5 3 3" strokeLinecap="round" />
+            </svg>
+            <input
+              id="tool-search"
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder={strings.searchPlaceholder}
+              autoComplete="off"
+              spellCheck={false}
+              className="min-w-0 flex-1 bg-transparent text-[15px] outline-none"
+              style={{ color: "var(--foreground)" }}
+            />
+            {query && (
+              // 44x44 like every other target here. It was an ~18px hit area,
+              // which is exactly the control someone with a tremor needs most.
+              <button
+                type="button"
+                onClick={reset}
+                aria-label={strings.clear}
+                className="flex shrink-0 items-center justify-center rounded-full text-lg leading-none hover:opacity-70"
+                style={{ width: 44, height: 44, color: "var(--muted)" }}
+              >
+                <span aria-hidden="true">&times;</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="mt-5">
-        <CategoryChips categories={categories} active={category} onChange={setCategory} />
-      </div>
+        <div className="mt-5">
+          <CategoryChips categories={categories} active={category} onChange={setCategory} />
+        </div>
+      </search>
 
       <p aria-live="polite" className="sr-only">
         {announced}
@@ -152,8 +161,8 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
               <button
                 type="button"
                 onClick={reset}
-                className="mt-3 rounded-full border px-4 py-2 text-sm hover:opacity-70"
-                style={{ borderColor: "var(--control-border)", color: "var(--foreground)" }}
+                className="mt-3 rounded-full border px-4 text-sm hover:opacity-70"
+                style={{ minHeight: 44, borderColor: "var(--control-border)", color: "var(--foreground)" }}
               >
                 {strings.clear}
               </button>

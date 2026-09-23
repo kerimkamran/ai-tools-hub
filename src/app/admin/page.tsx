@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/auth";
 import { getAllToolsForAdmin } from "@/lib/registry";
 import { STATUS_LABEL } from "@/lib/types";
 import { logout } from "./login/actions";
-import { deleteTool } from "./actions";
+import { DeleteButton } from "./DeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +52,7 @@ export default async function AdminPage() {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium">{t.name}</p>
                 <p className="truncate text-xs" style={{ color: "var(--faint)" }}>
-                  /{t.slug} · {t.category} · {STATUS_LABEL[t.status]} · #{t.sortOrder}
+                  {t.id} · /{t.slug} · {t.category} · {STATUS_LABEL[t.status]} · #{t.sortOrder}
                 </p>
               </div>
             </div>
@@ -64,16 +64,7 @@ export default async function AdminPage() {
               >
                 Edit
               </Link>
-              <form action={deleteTool}>
-                <input type="hidden" name="id" value={t.id} />
-                <button
-                  type="submit"
-                  className="rounded border px-3 py-1.5 text-xs"
-                  style={{ borderColor: "var(--control-border)", color: "var(--critical)" }}
-                >
-                  Delete
-                </button>
-              </form>
+              <DeleteButton id={t.id} name={t.name} />
             </div>
           </li>
         ))}
