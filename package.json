@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test:ssrf": "node --no-warnings --experimental-strip-types tests/ssrf.test.mts",
     "test:search": "node --no-warnings --experimental-strip-types tests/search.test.mts",
-    "test": "npm run test:ssrf && npm run test:search"
+    "test:contrast": "node --no-warnings --experimental-strip-types tests/contrast.test.mts",
+    "test": "npm run test:ssrf && npm run test:search && npm run test:contrast"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -1,0 +1,164 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Azerconnect design tokens (One.Simple rebrand, Phase A).
+
+   Palette sampled from the official Azerconnect wordmark SVG: logo blue
+   #044176 (gradient stop only), leaf green #356D1B (secondary brand colour).
+   Primary blue #0F3C76 and navy #092649 are the two "reads as Azerconnect"
+   tones -- primary for buttons/links/focus rings, navy for headings and dark
+   buttons. Structure stays Google-simple (near-white surfaces, hairline-style
+   dividers, one accent used once per page, never as decoration); colour,
+   type and shape are Azerconnect's.
+
+   Every value below was re-measured against the new palette, not inherited
+   from the old one -- a token swap this size invalidates prior contrast
+   measurements. --muted/--faint/--control-border all clear their WCAG floor
+   against BOTH --surface (paper, the harder case) and --background (canvas):
+     ink on paper   15.2:1   ink on canvas   13.0:1
+     muted on paper  5.7:1   muted on canvas  4.9:1
+     faint on paper  7.0:1   faint on canvas  6.0:1
+     control-border on paper 3.55:1 (WCAG 1.4.11 floor is 3:1)
+   --good/--warning were nudged one step darker than a literal palette-role
+   pick so they still clear 4.5:1 against canvas, not just paper.
+--------------------------------------------------------------------------- */
+:root {
+  --background: #e7eef8; /* canvas: cool light-blue app background */
+  --surface: #ffffff; /* paper: cards, inputs, nav */
+  --surface-sunken: #dae3f0;
+  --foreground: #15263f; /* ink: body text */
+  --muted: #5b6779;
+  --faint: #4d5a6d;
+  --line: #e2e8ef;
+  --line-soft: #f1f3f7;
+  --line-strong: #bcc8d9;
+  /* Interactive-control borders must meet WCAG 1.4.11 (3:1). --line-strong is
+     hairline and decorative; this token is for anything the user operates. */
+  --control-border: #6f8aad;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+
+  --primary: #0f3c76; /* buttons, links, focus rings */
+  --navy: #092649; /* headings, dark buttons */
+  --leaf: #356d1b; /* secondary brand colour */
+  --logo-blue: #044176; /* accent gradient stop only -- never used alone */
+  --gradient-accent: linear-gradient(90deg, var(--logo-blue), var(--leaf));
+
+  --good: #387047;
+  --warning: #96532b;
+  --critical: #b23b3b;
+
+  --focus: var(--primary);
+}
+
+:root.dark {
+  --background: #111111;
+  --surface: #171717;
+  --surface-sunken: #0d0d0d;
+  --foreground: #f0f0f0;
+  --muted: #a0a0a0;
+  --faint: #888888;
+  --line: #2a2a2a;
+  --line-soft: #212121;
+  --line-strong: #3a3a3a;
+  --control-border: #646464;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+
+  /* Lightened tints of the same hues -- the light-mode values are unreadable
+     on a near-black surface, same reasoning the old dark palette used. */
+  --primary: #879eba;
+  --navy: #f0f0f0; /* headings just read as --foreground in dark mode */
+  --leaf: #9ab68d;
+  --logo-blue: #82a0ba;
+  --gradient-accent: linear-gradient(90deg, var(--logo-blue), var(--leaf));
+
+  --good: #92b09a;
+  --warning: #c5a08a;
+  --critical: #d59393;
+
+  --focus: var(--primary);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+  --color-control-border: var(--control-border);
+  --color-primary: var(--primary);
+  --color-navy: var(--navy);
+  --color-leaf: var(--leaf);
+  --color-logo-blue: var(--logo-blue);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-critical: var(--critical);
+  --font-sans: var(--font-manrope);
+}
+
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* One visible focus treatment everywhere, on a token so it inverts in dark. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The entire animation budget for this product. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Category chips scroll horizontally on narrow screens without scrollbar chrome. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* type="search" gives us semantics and the right mobile keyboard, but WebKit
+   also draws its own clear button -- which would sit next to the one we
+   render, giving the field two clear controls. Ours stays: it is keyboard
+   reachable, has an accessible name, and also resets the category filter. */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
