@@ -1,9 +1,11 @@
--- Seed the catalog. Safe to re-run.
+-- Seed the catalog. Safe to re-run. Unchanged from the Supabase version
+-- except the `public.` schema prefix (plain Postgres has no separate
+-- `public`/`storage`/`auth` schema split to disambiguate).
 --
 -- Note the wording: these descriptions are PUBLIC writing. The hub is indexed,
 -- so no internal codenames, client names or department detail belongs here.
 
-insert into public.tools
+insert into tools
   (id, slug, name, tagline, description, category, tags, icon, url, health_url,
    access, access_note, status, sort_order)
 values

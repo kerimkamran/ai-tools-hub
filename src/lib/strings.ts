@@ -6,7 +6,7 @@
  * refactor of every component.
  */
 export const strings = {
-  brand: "AI Tools",
+  brand: "One.Simple",
   tagline: "Everything I've built, in one place.",
   searchPlaceholder: "Search tools…",
   searchLabel: "Search AI tools",

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { getAllToolsForAdmin } from "@/lib/registry";
 import { STATUS_LABEL } from "@/lib/types";
-import { logout } from "./login/actions";
 import { DeleteButton } from "./DeleteButton";
 
 export const dynamic = "force-dynamic";
@@ -15,24 +14,13 @@ export default async function AdminPage() {
     <main className="mx-auto max-w-[900px] px-4 py-10">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold tracking-tight">Catalog</h1>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin/tools/new"
-            className="rounded-md px-4 py-2 text-sm font-medium"
-            style={{ background: "var(--foreground)", color: "var(--background)" }}
-          >
-            Add tool
-          </Link>
-          <form action={logout}>
-            <button
-              type="submit"
-              className="rounded-md border px-4 py-2 text-sm"
-              style={{ borderColor: "var(--control-border)", color: "var(--muted)" }}
-            >
-              Sign out
-            </button>
-          </form>
-        </div>
+        <Link
+          href="/admin/tools/new"
+          className="rounded-md px-4 py-2 text-sm font-medium"
+          style={{ background: "var(--foreground)", color: "var(--background)" }}
+        >
+          Add tool
+        </Link>
       </div>
 
       <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>

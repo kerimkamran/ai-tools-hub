@@ -5,7 +5,7 @@ import type { Tool } from "@/lib/types";
  *
  * Moving the registry into a database bought an admin UI, but it also made a
  * previously-static page depend on a network service. This snapshot is the
- * price of buying that back: if Supabase is unreachable or unconfigured, the
+ * price of buying that back: if Postgres is unreachable or unconfigured, the
  * catalog still renders and every link still works, read-only.
  *
  * Keep it roughly in sync with production when tools are added. It is a

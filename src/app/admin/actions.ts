@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { query, queryOne } from "@/lib/db/client";
 import { getAdminOrNull } from "@/lib/auth";
 import { emptyToNull, parseTags, toolInputSchema } from "@/lib/validate";
 
@@ -39,6 +39,35 @@ function revalidateAll(slug?: string) {
   if (slug) revalidatePath(`/tools/${slug}`);
 }
 
+type PgError = { code?: string; constraint?: string; message: string };
+
+function isPgError(err: unknown): err is PgError {
+  return typeof err === "object" && err !== null && "message" in err;
+}
+
+function mapWriteError(err: unknown): ActionState {
+  if (isPgError(err)) {
+    if (err.code === "23505") {
+      // Unique violation. The constraint name tells us which index tripped.
+      if (err.constraint?.includes("pkey")) {
+        return {
+          error: "That ID is already used by another tool.",
+          fieldErrors: { id: "Already taken." },
+        };
+      }
+      return {
+        error: "That slug is already used by another tool.",
+        fieldErrors: { slug: "Already taken." },
+      };
+    }
+    if (err.code === "23514") {
+      return { error: "A published tool needs a URL.", fieldErrors: { url: "Required to publish." } };
+    }
+    return { error: err.message };
+  }
+  return { error: "Something went wrong. Please try again." };
+}
+
 export async function saveTool(
   _prev: ActionState,
   formData: FormData
@@ -67,25 +96,6 @@ export async function saveTool(
     };
   }
 
-  const row = {
-    id: t.id,
-    slug: t.slug,
-    name: t.name,
-    tagline: t.tagline,
-    description: t.description,
-    category: t.category,
-    tags: t.tags,
-    icon: t.icon,
-    url: t.url,
-    health_url: t.healthUrl,
-    access: t.access,
-    access_note: t.accessNote,
-    status: t.status,
-    sort_order: t.sortOrder,
-  };
-
-  const supabase = createAdminClient();
-
   /**
    * Create and edit are separate statements, deliberately.
    *
@@ -101,43 +111,44 @@ export async function saveTool(
   const originalId = String(formData.get("originalId") ?? "").trim();
   const isEdit = originalId.length > 0;
 
-  if (isEdit) {
-    const { data, error } = await supabase
-      .from("tools")
-      .update(row)
-      .eq("id", originalId)
-      .select("id");
-    if (error) return mapWriteError(error);
-    if (!data || data.length === 0) {
-      return { error: "That tool no longer exists. It may have been deleted." };
+  try {
+    if (isEdit) {
+      const rows = await query<{ id: string }>(
+        `update tools set
+           id = $1, slug = $2, name = $3, tagline = $4, description = $5,
+           category = $6, tags = $7, icon = $8, url = $9, health_url = $10,
+           access = $11, access_note = $12, status = $13, sort_order = $14
+         where id = $15
+         returning id`,
+        [
+          t.id, t.slug, t.name, t.tagline, t.description,
+          t.category, t.tags, t.icon, t.url, t.healthUrl,
+          t.access, t.accessNote, t.status, t.sortOrder,
+          originalId,
+        ]
+      );
+      if (rows.length === 0) {
+        return { error: "That tool no longer exists. It may have been deleted." };
+      }
+    } else {
+      await query(
+        `insert into tools
+           (id, slug, name, tagline, description, category, tags, icon, url,
+            health_url, access, access_note, status, sort_order)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+        [
+          t.id, t.slug, t.name, t.tagline, t.description,
+          t.category, t.tags, t.icon, t.url, t.healthUrl,
+          t.access, t.accessNote, t.status, t.sortOrder,
+        ]
+      );
     }
-  } else {
-    const { error } = await supabase.from("tools").insert(row);
-    if (error) return mapWriteError(error);
+  } catch (err) {
+    return mapWriteError(err);
   }
 
   revalidateAll(t.slug);
   redirect("/admin");
-}
-
-function mapWriteError(error: { code?: string; message: string }): ActionState {
-  if (error.code === "23505") {
-    // Which unique index tripped? The message names the constraint.
-    if (error.message.includes("pkey")) {
-      return {
-        error: "That ID is already used by another tool.",
-        fieldErrors: { id: "Already taken." },
-      };
-    }
-    return {
-      error: "That slug is already used by another tool.",
-      fieldErrors: { slug: "Already taken." },
-    };
-  }
-  if (error.code === "23514") {
-    return { error: "A published tool needs a URL.", fieldErrors: { url: "Required to publish." } };
-  }
-  return { error: error.message };
 }
 
 export type DeleteState = { error?: string };
@@ -151,12 +162,11 @@ export async function deleteTool(
   const id = String(formData.get("id") ?? "").trim();
   if (!id) return { error: "No tool specified." };
 
-  const supabase = createAdminClient();
-  // Errors here were previously discarded, so a failed delete reported success
-  // and the row silently stayed in the catalog.
-  const { data, error } = await supabase.from("tools").delete().eq("id", id).select("id");
-  if (error) return { error: `Could not delete: ${error.message}` };
-  if (!data || data.length === 0) return { error: "That tool no longer exists." };
+  const row = await queryOne<{ id: string }>(
+    "delete from tools where id = $1 returning id",
+    [id]
+  );
+  if (!row) return { error: "That tool no longer exists." };
 
   revalidateAll();
   redirect("/admin");

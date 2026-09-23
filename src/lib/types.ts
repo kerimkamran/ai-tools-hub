@@ -49,7 +49,7 @@ export const STATUS_LABEL: Record<ToolStatus, string> = {
   archived: "Archived",
 };
 
-/** Shape returned by Supabase (snake_case) before mapping. */
+/** Shape returned by the tools table (snake_case) before mapping. */
 export type ToolRow = {
   id: string;
   slug: string;

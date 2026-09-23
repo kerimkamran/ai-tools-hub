@@ -8,9 +8,11 @@ import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
  * tools it links to present a consistent posture, with two deliberate
  * differences:
  *
- *  - connect-src allows NO AI provider host. The hub makes zero model calls
- *    and holds zero provider keys; if a provider hostname ever needs to appear
- *    here, something has gone wrong.
+ *  - connect-src allows NO external host at all -- not an AI provider, not a
+ *    database. The hub makes zero model calls and holds zero provider keys,
+ *    and Postgres is only ever reached from server-side code (src/lib/db),
+ *    never from the browser; if any hostname ever needs to appear here,
+ *    something has gone wrong.
  *  - frame-ancestors 'none' (plus X-Frame-Options), because nothing should
  *    embed the catalog either.
  *
@@ -52,7 +54,7 @@ function securityHeaders(isDev: boolean) {
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         "font-src 'self' data:",
-        "connect-src 'self' https://*.supabase.co",
+        "connect-src 'self'",
         "form-action 'self'",
         "base-uri 'self'",
         "object-src 'none'",

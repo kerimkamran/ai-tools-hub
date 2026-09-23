@@ -1,48 +1,55 @@
 @import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
-   "Field" design tokens.
+   Azerconnect design tokens (One.Simple rebrand, Phase A).
 
-   Ported verbatim from Vantage (aiac-platform/src/app/globals.css) so the hub
-   and the tools it links to read as one product. Deliberately plain and
-   light-first: near-white surfaces, hairline dividers instead of boxed
-   shadows, and exactly one accent (clay) used for the single most important
-   thing on a screen -- never as decoration.
+   Palette sampled from the official Azerconnect wordmark SVG: logo blue
+   #044176 (gradient stop only), leaf green #356D1B (secondary brand colour).
+   Primary blue #0F3C76 and navy #092649 are the two "reads as Azerconnect"
+   tones -- primary for buttons/links/focus rings, navy for headings and dark
+   buttons. Structure stays Google-simple (near-white surfaces, hairline-style
+   dividers, one accent used once per page, never as decoration); colour,
+   type and shape are Azerconnect's.
 
-   Contrast note: --brand (#c96f42) is ~3.4:1 on white and therefore is NOT
-   safe for body text. Use --brand-deep (#8b4423, ~7.4:1) whenever the accent
-   carries text. --faint was raised from Vantage's #8a8a8a/#757575 to reach
-   4.5:1 -- it labels the category and destination host, which is real text,
-   not decoration. --control-border exists so anything the user operates meets
-   WCAG 1.4.11 (3:1) while --line/--line-strong stay hairline for dividers.
+   Every value below was re-measured against the new palette, not inherited
+   from the old one -- a token swap this size invalidates prior contrast
+   measurements. --muted/--faint/--control-border all clear their WCAG floor
+   against BOTH --surface (paper, the harder case) and --background (canvas):
+     ink on paper   15.2:1   ink on canvas   13.0:1
+     muted on paper  5.7:1   muted on canvas  4.9:1
+     faint on paper  7.0:1   faint on canvas  6.0:1
+     control-border on paper 3.55:1 (WCAG 1.4.11 floor is 3:1)
+   --good/--warning were nudged one step darker than a literal palette-role
+   pick so they still clear 4.5:1 against canvas, not just paper.
 --------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --surface: #ffffff;
-  --surface-sunken: #fafafa;
-  --foreground: #1a1a1a;
-  --muted: #6b6b6b;
-  --faint: #707070;
-  --line: #ececec;
-  --line-soft: #f2f2f2;
-  --line-strong: #d8d8d8;
+  --background: #e7eef8; /* canvas: cool light-blue app background */
+  --surface: #ffffff; /* paper: cards, inputs, nav */
+  --surface-sunken: #dae3f0;
+  --foreground: #15263f; /* ink: body text */
+  --muted: #5b6779;
+  --faint: #4d5a6d;
+  --line: #e2e8ef;
+  --line-soft: #f1f3f7;
+  --line-strong: #bcc8d9;
   /* Interactive-control borders must meet WCAG 1.4.11 (3:1). --line-strong is
      hairline and decorative; this token is for anything the user operates. */
-  --control-border: #868686;
+  --control-border: #6f8aad;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
 
-  --brand: #c96f42;
-  --brand-light: #d68a63;
-  --brand-deep: #8b4423;
-  --brand-50: #fbf1ea;
+  --primary: #0f3c76; /* buttons, links, focus rings */
+  --navy: #092649; /* headings, dark buttons */
+  --leaf: #356d1b; /* secondary brand colour */
+  --logo-blue: #044176; /* accent gradient stop only -- never used alone */
+  --gradient-accent: linear-gradient(90deg, var(--logo-blue), var(--leaf));
 
-  --good: #3d7a4d;
-  --warning: #a35a2f;
+  --good: #387047;
+  --warning: #96532b;
   --critical: #b23b3b;
 
-  --focus: #1a1a1a;
+  --focus: var(--primary);
 }
 
 :root.dark {
@@ -60,16 +67,19 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
 
-  --brand: #d68a63;
-  --brand-light: #e0a482;
-  --brand-deep: #e0a482;
-  --brand-50: #2a1d15;
+  /* Lightened tints of the same hues -- the light-mode values are unreadable
+     on a near-black surface, same reasoning the old dark palette used. */
+  --primary: #879eba;
+  --navy: #f0f0f0; /* headings just read as --foreground in dark mode */
+  --leaf: #9ab68d;
+  --logo-blue: #82a0ba;
+  --gradient-accent: linear-gradient(90deg, var(--logo-blue), var(--leaf));
 
-  --good: #6fae7f;
-  --warning: #d68a63;
-  --critical: #d4726f;
+  --good: #92b09a;
+  --warning: #c5a08a;
+  --critical: #d59393;
 
-  --focus: #f0f0f0;
+  --focus: var(--primary);
 }
 
 @theme inline {
@@ -83,14 +93,14 @@
   --color-line-soft: var(--line-soft);
   --color-line-strong: var(--line-strong);
   --color-control-border: var(--control-border);
-  --color-brand: var(--brand);
-  --color-brand-light: var(--brand-light);
-  --color-brand-deep: var(--brand-deep);
-  --color-brand-50: var(--brand-50);
+  --color-primary: var(--primary);
+  --color-navy: var(--navy);
+  --color-leaf: var(--leaf);
+  --color-logo-blue: var(--logo-blue);
   --color-good: var(--good);
   --color-warning: var(--warning);
   --color-critical: var(--critical);
-  --font-sans: var(--font-inter);
+  --font-sans: var(--font-manrope);
 }
 
 html {

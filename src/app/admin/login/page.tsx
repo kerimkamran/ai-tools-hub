@@ -1,20 +1,19 @@
 import { login, logout } from "./actions";
-import { hasSupabaseConfig } from "@/lib/supabase/server";
-import { isSignedInButNotAdmin } from "@/lib/auth";
+import { hasAuthConfig, isSignedInButNotAdmin } from "@/lib/auth";
 
 const SHELL = "mx-auto flex min-h-screen max-w-[360px] flex-col justify-center px-4";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; invited?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, invited } = await searchParams;
 
   // An unconfigured deployment says so plainly rather than offering a form
   // that cannot work. It says nothing about WHY -- no env var names, no stack
   // traces -- because this page is reachable by anyone.
-  if (!hasSupabaseConfig()) {
+  if (!hasAuthConfig()) {
     return (
       <main className={SHELL}>
         <h1 className="text-xl font-semibold tracking-tight">Admin</h1>
@@ -84,7 +83,17 @@ export default async function LoginPage({
           />
         </div>
 
-        {error && (
+        {invited === "1" && !error && (
+          <p className="text-sm" style={{ color: "var(--good)" }}>
+            Password set. Sign in below.
+          </p>
+        )}
+        {error === "locked" && (
+          <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>
+            Too many failed attempts. Try again in a few minutes.
+          </p>
+        )}
+        {error && error !== "locked" && (
           <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>
             {/* Deliberately generic: distinguishing "no such user" from "wrong
                 password" hands an attacker an account-enumeration oracle. */}

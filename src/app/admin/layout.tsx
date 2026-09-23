@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { AdminNav } from "./AdminNav";
 
 /**
  * The admin surface is never indexed. This sits alongside the Disallow in
@@ -10,5 +11,10 @@ export const metadata: Metadata = {
 };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen">{children}</div>;
+  return (
+    <div className="min-h-screen">
+      <AdminNav />
+      {children}
+    </div>
+  );
 }

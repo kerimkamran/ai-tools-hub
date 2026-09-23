@@ -9,12 +9,16 @@
     "lint": "eslint",
     "test:ssrf": "node --no-warnings --experimental-strip-types tests/ssrf.test.mts",
     "test:search": "node --no-warnings --experimental-strip-types tests/search.test.mts",
-    "test": "npm run test:ssrf && npm run test:search"
+    "test:contrast": "node --no-warnings --experimental-strip-types tests/contrast.test.mts",
+    "test": "npm run test:ssrf && npm run test:search && npm run test:contrast",
+    "migrate": "node --no-warnings --experimental-strip-types scripts/migrate.mts",
+    "create-super-admin": "node --no-warnings --experimental-strip-types scripts/create-super-admin.mts"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.117.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.12",
     "next": "16.3.6",
+    "pg": "^8.23.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
@@ -22,7 +26,9 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

@@ -1,7 +1,7 @@
 import { Header } from "@/components/Header";
 import { SearchAndFilter } from "@/components/SearchAndFilter";
 import { getCatalogTools } from "@/lib/registry";
-import { strings } from "@/lib/strings";
+import { getSiteSettings } from "@/lib/settings";
 
 /**
  * The catalog.
@@ -19,7 +19,10 @@ import { strings } from "@/lib/strings";
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const tools = await getCatalogTools();
+  // getSiteSettings() is wrapped in React's cache(), so this shares one
+  // query with <Header>'s own call and with generateMetadata() -- see
+  // src/lib/settings.ts.
+  const [tools, settings] = await Promise.all([getCatalogTools(), getSiteSettings()]);
 
   return (
     <>
@@ -27,10 +30,10 @@ export default async function HomePage() {
       <main className="mx-auto max-w-[1100px] px-4 pb-24">
         <div className="pt-14 pb-8 text-center sm:pt-20">
           <h1 className="text-[34px] font-semibold leading-tight tracking-tight sm:text-[40px]">
-            {strings.brand}
+            {settings.brandName}
           </h1>
           <p className="mx-auto mt-2 max-w-[480px] text-[15px]" style={{ color: "var(--muted)" }}>
-            {strings.tagline}
+            {settings.tagline}
           </p>
         </div>
         <SearchAndFilter tools={tools} />
