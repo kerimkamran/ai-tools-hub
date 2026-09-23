@@ -66,6 +66,11 @@ These are load-bearing. Breaking one is a defect, not a preference.
 7. **The page works with JavaScript disabled** — the full grid and every link
    are in the server-rendered HTML.
 8. **Adding a tool requires no code change**, only a registry row.
+9. **`/admin` requires authorization, not just authentication.** A valid
+   Supabase session is not sufficient; the email must be in `ADMIN_EMAILS`.
+10. **`unlisted` must not be enumerable.** The anon key is public and speaks
+    PostgREST, so RLS admits only `published` and `planned`; unlisted rows
+    resolve server-side by exact slug.
 
 ## Setup
 
@@ -75,10 +80,22 @@ cp .env.example .env.local   # then fill in the Supabase values
 npm run dev
 ```
 
-Then in the Supabase SQL editor, run `supabase/migrations/0001_tools.sql`
-followed by `supabase/seed.sql`, and create exactly one admin user under
-Authentication → Users. There is no signup route: the admin account is created
-by hand, on purpose.
+Then in Supabase:
+
+1. Run `supabase/migrations/0001_tools.sql`, then `0002_unlisted_not_enumerable.sql`,
+   then `supabase/seed.sql` in the SQL editor.
+2. Create your admin user by hand under **Authentication → Users**. There is no
+   signup route in this app, on purpose.
+3. **Turn off public signups**: Authentication → Providers → Email → uncheck
+   "Allow new users to sign up".
+4. Set `ADMIN_EMAILS` to that user's address.
+
+Steps 3 and 4 are both security controls and neither is optional.
+
+A Supabase project accepts public signups at `/auth/v1/signup` by default, so
+"has a valid session" is a state any stranger can put themselves in. `/admin`
+therefore requires **membership of `ADMIN_EMAILS`**, not merely a session. An
+empty or missing allowlist authorizes nobody — it does not fall open.
 
 Without Supabase configured the catalog still renders, served from the static
 snapshot in `src/lib/config/fallback-tools.ts`.
@@ -102,6 +119,23 @@ link working.
 | `planned` | yes, dimmed | no | yes |
 | `unlisted` | no | via direct link | no |
 | `archived` | no | no | no |
+
+## Tests
+
+```bash
+npm test          # both suites, ~1s, no framework
+```
+
+Two suites only, both guarding things that fail silently:
+
+- `tests/ssrf.test.mts` — 30 cases against the health-URL validator, the one
+  place admin input drives a server-side fetch. Covers cloud metadata, every
+  private range, IPv6 loopback/ULA/link-local, trailing-dot hosts, and
+  `javascript:`/`data:` schemes.
+- `tests/search.test.mts` — diacritic folding and multi-word AND matching.
+  This one earned its place immediately: it disproved a claim in the source
+  comments, since NFKD does **not** fold `ə` (U+0259) and so "azerbaycan" did
+  not match "Azərbaycan" until an explicit fold map was added.
 
 ## Notes
 

@@ -857,3 +857,85 @@ and the route can no longer act as an accidental cron.
 Still open: the hub's public-facing name and wordmark, and whether Render's
 free tier supports custom domains with automatic certificates (only matters at
 the subdomain upgrade).
+
+---
+
+# 17. Adversarial review — what it caught
+
+After the first working build, five reviewers (security, correctness,
+accessibility/UX, plan-conformance, public-exposure) went through the codebase
+in parallel, and every finding was then handed to skeptics briefed to refute
+it. 27 findings were raised; **15 survived verification**, which is roughly the
+signal-to-noise you should expect and the reason the refutation pass exists.
+
+The one that matters most was a design error in this very document.
+
+### The critical finding: §6.2 specified authentication, not authorization
+
+§6.2 said "Supabase Auth with exactly one admin user" and treated that as the
+gate. The implementation followed it faithfully, and was wrong: `requireAdmin()`
+accepted **any** valid Supabase user.
+
+A Supabase project accepts public signups at `/auth/v1/signup` by default. So
+on a public, indexed site, the admin surface was reachable by anyone willing to
+register an account. "Create exactly one user" is an instruction to the
+operator, not a constraint the system enforces — and the system is what has to
+hold.
+
+Fixed with an `ADMIN_EMAILS` allowlist that fails closed (an empty or missing
+value authorizes nobody), plus the instruction to disable public signup in the
+dashboard. Either control alone would do; neither is worth relying on alone.
+
+That fix then created a second, subtler bug worth recording: the proxy
+redirected any signed-in user from `/admin/login` to `/admin`, while
+`requireAdmin()` bounced non-allowlisted users back — an infinite loop. The
+proxy now forwards only allowlisted users, and a signed-in non-admin sees a
+"No access" page with a sign-out button.
+
+### `unlisted` was enumerable, which is the opposite of unlisted
+
+§7's RLS policy admitted `published`, `planned` and `unlisted` to the anon key.
+But the anon key is public and speaks PostgREST, so admitting a status also
+grants `GET /rest/v1/tools?status=eq.unlisted&select=*` — anyone could list
+every unlisted tool. Migration `0002` drops it to published+planned, and
+unlisted rows now resolve server-side by exact slug, so direct links work and
+the set stays unenumerable.
+
+### An empty catalog resurrected the fallback
+
+`getCatalogTools()` treated a zero-row result as a Supabase failure. Deleting
+the last tool would therefore have brought the three hardcoded fallback entries
+back onto the live site, with no way to remove them from the admin UI. Empty is
+a legitimate state; only a real error now falls back.
+
+### One upsert could not tell "create" from "edit"
+
+A single `upsert` keyed on `id` meant typing an existing ID on the Add form
+silently overwrote that tool — every column replaced, no error, unrecoverable
+from inside the app. Now `insert()` for create and `update().eq("id", …)` for
+edit, with the id taken from the route rather than the `readOnly` form field
+(`readOnly` is a client-side hint that still submits).
+
+### Accessibility findings the plan's own criteria had missed
+
+| Finding | Why it mattered |
+|---|---|
+| Card `aria-label` replaced inner text | It hid the access badge and access note — the one thing that tells a screen-reader user they cannot get in at all |
+| `planned` card used `opacity-60` | Multiplied through to its text at ~2:1; the card explaining a tool does not exist yet was the least readable one |
+| Global `/` shortcut | Fails WCAG 2.1.4 (Level A, stricter than our AA target) unless disableable, remappable or focus-scoped. Removed; speech-input users trip these constantly |
+| Clear button ~18px | In a UI where everything else is 44px |
+| `aria-live` keyed on count alone | Switching between two filters with equal counts announced nothing |
+| `<ul class="list-none">` | Safari/VoiceOver drops list semantics without an explicit `role="list"` |
+
+### A test disproved a comment I had written
+
+`tests/search.test.mts` was added to check the diacritic folding §4.3 promised.
+It immediately failed: NFKD decomposes *decorated* letters, but `ə` (U+0259) is
+a distinct letter, so "azerbaycan" did not match "Azərbaycan". The comment
+claiming otherwise was simply false. Fixed with an explicit fold map for `ə`
+and `ı`.
+
+**The general lesson:** the claims most worth testing are the ones stated
+confidently in a comment. Both security guarantees in §12 — the `server-only`
+build failure and the admin redirect — were also tested rather than asserted,
+and both hold.
