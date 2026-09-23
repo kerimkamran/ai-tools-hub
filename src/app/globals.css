@@ -1,26 +1,135 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   "Field" design tokens.
+
+   Ported verbatim from Vantage (aiac-platform/src/app/globals.css) so the hub
+   and the tools it links to read as one product. Deliberately plain and
+   light-first: near-white surfaces, hairline dividers instead of boxed
+   shadows, and exactly one accent (clay) used for the single most important
+   thing on a screen -- never as decoration.
+
+   Contrast note: --brand (#c96f42) is ~3.4:1 on white and therefore is NOT
+   safe for body text. Use --brand-deep (#8b4423, ~7.4:1) whenever the accent
+   carries text. --faint is ~3.5:1: large or non-essential text only.
+--------------------------------------------------------------------------- */
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --surface: #ffffff;
+  --surface-sunken: #fafafa;
+  --foreground: #1a1a1a;
+  --muted: #6b6b6b;
+  --faint: #8a8a8a;
+  --line: #ececec;
+  --line-soft: #f2f2f2;
+  --line-strong: #d8d8d8;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+
+  --brand: #c96f42;
+  --brand-light: #d68a63;
+  --brand-deep: #8b4423;
+  --brand-50: #fbf1ea;
+
+  --good: #3d7a4d;
+  --warning: #a35a2f;
+  --critical: #b23b3b;
+
+  --focus: #1a1a1a;
+}
+
+:root.dark {
+  --background: #111111;
+  --surface: #171717;
+  --surface-sunken: #0d0d0d;
+  --foreground: #f0f0f0;
+  --muted: #a0a0a0;
+  --faint: #757575;
+  --line: #2a2a2a;
+  --line-soft: #212121;
+  --line-strong: #3a3a3a;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
+
+  --brand: #d68a63;
+  --brand-light: #e0a482;
+  --brand-deep: #e0a482;
+  --brand-50: #2a1d15;
+
+  --good: #6fae7f;
+  --warning: #d68a63;
+  --critical: #d4726f;
+
+  --focus: #f0f0f0;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-light: var(--brand-light);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-50: var(--brand-50);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-critical: var(--critical);
+  --font-sans: var(--font-inter);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* One visible focus treatment everywhere, on a token so it inverts in dark. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* The entire animation budget for this product. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Category chips scroll horizontally on narrow screens without scrollbar chrome. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
