@@ -2,7 +2,7 @@
 
 import { useActionState, useTransition } from "react";
 import { useKeepAction } from "@/components/admin/useKeepAction";
-import { applyPreset, saveLogo, type StudioState } from "./actions";
+import { applyPreset, saveCareersUrl, saveLogo, type StudioState } from "./actions";
 
 type Preset = { id: string; label: string; description: string; swatch: string[] };
 
@@ -55,6 +55,33 @@ export function LogoForm({ hasLogo }: { hasLogo: boolean }) {
       {state.ok && !pending && <p role="status" className="text-xs" style={{ color: "var(--good)" }}>{state.ok}</p>}
       <button type="submit" disabled={pending} className="rounded-md border px-4 text-sm disabled:opacity-50" style={{ minHeight: 44, borderColor: "var(--control-border)" }}>
         {pending ? "Saving…" : "Save logo"}
+      </button>
+    </form>
+  );
+}
+
+export function CareersLinkForm({ currentUrl }: { currentUrl: string | null }) {
+  const [state, onSubmit, pending] = useKeepAction<StudioState>(saveCareersUrl, {});
+  return (
+    <form onSubmit={onSubmit} className="space-y-3 rounded-lg border p-4" style={{ borderColor: "var(--line)" }}>
+      <h2 className="text-base font-semibold">Careers / apply link</h2>
+      <p className="text-xs" style={{ color: "var(--muted)" }}>
+        Shown on the home page next to Graham Bell, to anyone who isn&rsquo;t signed in: &ldquo;Not an Azerconnect
+        employee? No worries — apply to join us.&rdquo; Leave blank and that message shows with no link. Saved
+        immediately, like the logo.
+      </p>
+      <input
+        type="url"
+        name="careersUrl"
+        defaultValue={currentUrl ?? ""}
+        placeholder="https://azerconnectgroup.com/careers"
+        className="w-full rounded-md border px-3 py-2 text-sm outline-none"
+        style={{ minHeight: 44, borderColor: "var(--control-border)", background: "var(--surface)" }}
+      />
+      {state.error && <p role="alert" className="text-xs" style={{ color: "var(--critical)" }}>{state.error}</p>}
+      {state.ok && !pending && <p role="status" className="text-xs" style={{ color: "var(--good)" }}>{state.ok}</p>}
+      <button type="submit" disabled={pending} className="rounded-md border px-4 text-sm disabled:opacity-50" style={{ minHeight: 44, borderColor: "var(--control-border)" }}>
+        {pending ? "Saving…" : "Save link"}
       </button>
     </form>
   );

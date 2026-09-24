@@ -22,15 +22,17 @@ import { hasMailConfig, sendMail } from "@/lib/mailer";
  */
 export async function assistantLogin(formData: FormData) {
   const locale = toLocale(formData.get("locale"));
-  const base = localePath(locale, "/assistant");
+  const loginPath = localePath(locale, "/assistant/login");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
   const result = await verifyCredentials(email, password, "assistant");
-  if (result.status === "locked") redirect(`${base}/login?error=locked`);
-  if (result.status !== "ok") redirect(`${base}/login?error=1`);
+  if (result.status === "locked") redirect(`${loginPath}?error=locked`);
+  if (result.status !== "ok") redirect(`${loginPath}?error=1`);
 
-  redirect(await afterPassword(result, base, "assistant"));
+  // Graham Bell lives on the home page itself, not a separate /assistant
+  // route -- so a successful sign-in lands back there, chat now enabled.
+  redirect(await afterPassword(result, localePath(locale), "assistant"));
 }
 
 export async function assistantLogout(formData: FormData) {

@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { requirePermission } from "@/lib/auth";
 import { getLiveTheme } from "@/lib/theme-store";
+import { getSiteSettings } from "@/lib/settings";
 import { PRESETS } from "@/lib/design";
 import { StudioForm } from "./StudioForm";
-import { LogoForm, PresetPicker } from "./StudioSide";
+import { CareersLinkForm, LogoForm, PresetPicker } from "./StudioSide";
 
 export const dynamic = "force-dynamic";
 
 export default async function ThemePage({ searchParams }: { searchParams: Promise<{ applied?: string; t?: string }> }) {
   await requirePermission("theme.manage");
-  const { live, draft, logoUrl } = await getLiveTheme();
+  const [{ live, draft, logoUrl }, siteSettings] = await Promise.all([getLiveTheme(), getSiteSettings()]);
   const start = draft ?? live;
   const { applied, t } = await searchParams;
   const appliedPreset = PRESETS.find((p) => p.id === applied);
@@ -41,6 +42,7 @@ export default async function ThemePage({ searchParams }: { searchParams: Promis
           }))}
         />
         <LogoForm hasLogo={Boolean(logoUrl)} />
+        <CareersLinkForm currentUrl={siteSettings.careersUrl} />
       </div>
 
       {appliedPreset && (

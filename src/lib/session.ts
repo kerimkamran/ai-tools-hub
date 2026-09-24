@@ -173,6 +173,8 @@ export const PENDING_COOKIE_OPTIONS = {
 /** Where a signed-in person may be sent after the code step. Never an open redirect. */
 export function safeNext(next: string | null | undefined): string {
   if (next === "/admin") return "/admin";
-  if (next && /^\/(en|az|ru)\/assistant$/.test(next)) return next;
+  // Staff land on the home page itself (Graham Bell is embedded there), not
+  // a dedicated /assistant route.
+  if (next && /^\/(en|az|ru)$/.test(next)) return next;
   return "/admin";
 }

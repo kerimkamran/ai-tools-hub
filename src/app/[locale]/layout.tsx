@@ -5,6 +5,7 @@ import { getStrings } from "@/lib/strings";
 import { getSiteSettings, localizedTagline } from "@/lib/settings";
 import { localeAlternates } from "@/lib/alternates";
 import { UsageBeacon } from "@/components/UsageBeacon";
+import { GrahamBellWidget } from "@/components/GrahamBellWidget";
 
 /**
  * Every public page lives under /en, /az or /ru and is prerendered once per
@@ -61,11 +62,16 @@ export default async function LocaleLayout({
   // <html lang> before first paint. Both are static per locale, so this
   // stays prerendered.
   const setLang = `document.documentElement.lang=${JSON.stringify(LOCALE_HREFLANG[locale])};`;
+  // Mounted here, not on any one page, so Graham Bell floats on every public
+  // page (home, about, a tool's detail page, the sign-in page itself) from
+  // one place. A client component, so this stays static/cookie-free too.
+  const settings = await getSiteSettings();
   return (
     <div lang={LOCALE_HREFLANG[locale]}>
       <script dangerouslySetInnerHTML={{ __html: setLang }} />
       <UsageBeacon locale={locale} />
       {children}
+      <GrahamBellWidget locale={locale} careersUrl={settings.careersUrl} />
     </div>
   );
 }

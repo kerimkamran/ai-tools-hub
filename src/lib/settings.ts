@@ -31,6 +31,9 @@ export type SiteSettings = {
   look: Look;
   /** Name of the scheduled look in effect, if any. */
   scheduled: string | null;
+  /** The "apply / careers" link shown to non-staff visitors on the home page's
+   * Graham Bell panel. Null/blank means the message renders with no link. */
+  careersUrl: string | null;
 };
 
 /** The tagline in `locale`, falling back to the English one. */
@@ -56,6 +59,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   logoUrl: null,
   look: DEFAULT_LOOK,
   scheduled: null,
+  careersUrl: null,
 };
 
 type SettingsRow = {
@@ -69,6 +73,7 @@ type SettingsRow = {
   look: unknown;
   scheduled_look: unknown;
   scheduled_name: string | null;
+  careers_url: string | null;
 };
 
 function rowToSettings(row: SettingsRow): SiteSettings {
@@ -85,6 +90,7 @@ function rowToSettings(row: SettingsRow): SiteSettings {
     logoUrl: row.logo_url,
     look: row.scheduled_look ? sanitizeLook(row.scheduled_look, published) : published,
     scheduled: row.scheduled_look ? row.scheduled_name : null,
+    careersUrl: row.careers_url,
   };
 }
 
@@ -103,7 +109,7 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
       // rule 4): with revalidate = 60 on every public route, a scheduled look
       // starts and ends on every page within the minute.
       `select s.brand_name, s.wordmark_primary, s.wordmark_secondary, s.attribution, s.tagline,
-              s.tagline_i18n, s.logo_url, s.look,
+              s.tagline_i18n, s.logo_url, s.look, s.careers_url,
               sch.look as scheduled_look, sch.name as scheduled_name
          from site_settings s
          left join lateral (

@@ -70,7 +70,8 @@ export default async function AssistantLoginPage({
   const a = t.assistant;
 
   const signedIn = hasAuthConfig() ? await getCurrentUser() : null;
-  if (signedIn && (await getAssistantUserOrNull())) redirect(localePath(locale, "/assistant"));
+  // Graham Bell lives on the home page now, not a separate /assistant route.
+  if (signedIn && (await getAssistantUserOrNull())) redirect(localePath(locale));
   const email = signedIn?.email ?? null;
 
   return (

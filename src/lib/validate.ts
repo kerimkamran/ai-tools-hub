@@ -76,7 +76,10 @@ export function checkPublicHttpsUrl(raw: string): UrlCheck {
   return { ok: true, url };
 }
 
-const safeUrl = z
+// Exported: reused for any other admin-editable link that a person clicks
+// (not one the server fetches), e.g. the careers/apply link on the home
+// page's Graham Bell panel -- same "no javascript:, no garbage" discipline.
+export const safeUrl = z
   .string()
   .trim()
   .min(1)

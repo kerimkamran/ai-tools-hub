@@ -37,6 +37,47 @@ function Wordmark({ settings }: { settings: SiteSettings }) {
 }
 
 /**
+ * "Sign in" as a small <details> disclosure (same JS-free pattern as the
+ * language switcher below) offering the two destinations: User, for staff
+ * signing in to Graham Bell on the home page, and Admin, straight into the
+ * admin panel's own login.
+ */
+function SignInMenu({ locale }: { locale: Locale }) {
+  const t = getStrings(locale).assistant;
+  return (
+    <details className="group relative">
+      <summary
+        aria-label={t.nav}
+        className="flex list-none cursor-pointer items-center rounded px-2 py-2 text-sm hover:opacity-70 [&::-webkit-details-marker]:hidden"
+        style={{ minHeight: 44, color: "var(--muted)" }}
+      >
+        {t.nav}
+      </summary>
+      <nav
+        aria-label={t.nav}
+        className="absolute right-0 z-20 mt-1 flex flex-col overflow-hidden rounded-md border"
+        style={{ borderColor: "var(--line)", background: "var(--surface)", minWidth: 140, boxShadow: "var(--shadow-md)" }}
+      >
+        <Link
+          href={localePath(locale, "/assistant/login")}
+          className="flex items-center px-3 text-sm hover:opacity-70"
+          style={{ minHeight: 44, color: "var(--foreground)" }}
+        >
+          {t.userOption}
+        </Link>
+        <Link
+          href="/admin/login"
+          className="flex items-center border-t px-3 text-sm hover:opacity-70"
+          style={{ minHeight: 44, borderColor: "var(--line)", color: "var(--foreground)" }}
+        >
+          {t.adminOption}
+        </Link>
+      </nav>
+    </details>
+  );
+}
+
+/**
  * One control, not three -- a native <details> disclosure, so it needs no
  * JavaScript (same reasoning as the plain links it replaces: this keeps
  * working with JS disabled) and no client component. Each entry still
@@ -117,13 +158,7 @@ export async function Header({ locale, path = "" }: { locale: Locale; path?: str
           >
             {t.about}
           </Link>
-          <Link
-            href={localePath(locale, "/assistant")}
-            className="rounded px-2 py-2 text-sm hover:opacity-70"
-            style={{ color: "var(--muted)" }}
-          >
-            {t.assistant.nav}
-          </Link>
+          <SignInMenu locale={locale} />
           <LanguageSwitcher locale={locale} path={path} />
           <ThemeToggle locale={locale} />
         </div>

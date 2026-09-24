@@ -42,3 +42,4 @@ next-env.d.ts
 
 # .env.example documents required vars and MUST be committed.
 !.env.example
+server.log

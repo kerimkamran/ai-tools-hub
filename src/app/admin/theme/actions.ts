@@ -13,6 +13,7 @@ import {
 import { brandSchema } from "@/lib/theme-validate";
 import { getLiveTheme, parseSnapshot, publishSnapshot, type ThemeSnapshot } from "@/lib/theme-store";
 import { scheduleAutoTranslate } from "@/lib/auto-translate";
+import { safeUrl } from "@/lib/validate";
 
 /**
  * Design Studio (capability 9), super admin only.
@@ -202,6 +203,31 @@ export async function saveLogo(_prev: StudioState, formData: FormData): Promise<
   refreshPublic();
   refreshAdmin();
   return { ok: remove ? "Logo removed." : "Logo saved. The favicon uses it too." };
+}
+
+/**
+ * The "not an Azerconnect employee? apply" link on the home page's Graham
+ * Bell panel (capability from the character request). Saved immediately,
+ * like the logo -- not part of the draft/publish theme snapshot, since it
+ * is plain site content, not a look. Blank clears it, and the panel then
+ * shows that message with no link.
+ */
+export async function saveCareersUrl(_prev: StudioState, formData: FormData): Promise<StudioState> {
+  const user = await requirePermission("theme.manage");
+  const raw = String(formData.get("careersUrl") ?? "").trim();
+  let value: string | null = null;
+  if (raw) {
+    const parsed = safeUrl.safeParse(raw);
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Enter a valid link." };
+    value = parsed.data;
+  }
+  await transaction(async (tx) => {
+    await tx.query("update site_settings set careers_url = $1 where id = 1", [value]);
+    await audit(tx, { actor: user.email, action: "theme.careers_link", area: "theme", target: "careers_url", after: { set: Boolean(value) } });
+  });
+  refreshPublic();
+  refreshAdmin();
+  return { ok: value ? "Link saved." : "Link cleared." };
 }
 
 /** Dates are whole days in Baku time (UTC+4): start at 00:00, end after the end day. */
