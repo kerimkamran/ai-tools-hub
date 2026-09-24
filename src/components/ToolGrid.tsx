@@ -14,8 +14,8 @@ export function ToolGrid({ tools, locale }: { tools: Tool[]; locale: Locale }) {
   return (
     <ul
       role="list"
-      className="grid list-none gap-4 p-0"
-      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}
+      className="grid list-none p-0"
+      style={{ gap: "var(--grid-gap)", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))" }}
     >
       {tools.map((tool) => (
         <li key={tool.id} className="flex flex-col gap-1.5">

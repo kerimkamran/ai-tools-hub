@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getActiveAnnouncements } from "@/lib/announcements";
+import { AnnouncementBar } from "./AnnouncementBar";
 import { getStrings } from "@/lib/strings";
 import { getSiteSettings, type SiteSettings } from "@/lib/settings";
 import {
@@ -79,9 +81,13 @@ function LanguageSwitcher({ locale, path }: { locale: Locale; path: string }) {
  * page in each language.
  */
 export async function Header({ locale, path = "" }: { locale: Locale; path?: string }) {
-  const settings = await getSiteSettings();
+  const [settings, announcements] = await Promise.all([getSiteSettings(), getActiveAnnouncements(locale)]);
   const t = getStrings(locale);
   return (
+    <>
+    {announcements.map((a) => (
+      <AnnouncementBar key={a.id} id={a.id} severity={a.severity} text={a.text} closeLabel={t.announcementClose} />
+    ))}
     <header
       className="sticky top-0 z-10 backdrop-blur"
       style={{ background: "color-mix(in srgb, var(--background) 88%, transparent)" }}
@@ -109,7 +115,8 @@ export async function Header({ locale, path = "" }: { locale: Locale; path?: str
           <ThemeToggle locale={locale} />
         </div>
       </div>
-      <div aria-hidden="true" style={{ height: 3, background: "var(--gradient-accent)" }} />
+      <div aria-hidden="true" style={{ height: 3, background: "var(--gradient-accent)", display: "var(--accent-display)" }} />
     </header>
+    </>
   );
 }

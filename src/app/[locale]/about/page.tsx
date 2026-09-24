@@ -5,6 +5,9 @@ import { getStrings } from "@/lib/strings";
 import { isLocale, localePath, toLocale } from "@/lib/i18n";
 import { localeAlternates } from "@/lib/alternates";
 
+// Header reads the live brand settings; same timer as every public route.
+export const revalidate = 60;
+
 export async function generateMetadata({
   params,
 }: {

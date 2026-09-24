@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Header } from "@/components/Header";
 import { getStrings } from "@/lib/strings";
 import { localePath, toLocale } from "@/lib/i18n";
-import { canUseAssistant, getSessionEmail, hasAuthConfig } from "@/lib/auth";
+import { getAssistantUserOrNull, getCurrentUser, hasAuthConfig } from "@/lib/auth";
 import { assistantLogin, assistantLogout } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -24,8 +24,9 @@ export default async function AssistantLoginPage({
   const t = getStrings(locale);
   const a = t.assistant;
 
-  const email = hasAuthConfig() ? await getSessionEmail() : null;
-  if (email && (await canUseAssistant(email))) redirect(localePath(locale, "/assistant"));
+  const signedIn = hasAuthConfig() ? await getCurrentUser() : null;
+  if (signedIn && (await getAssistantUserOrNull())) redirect(localePath(locale, "/assistant"));
+  const email = signedIn?.email ?? null;
 
   return (
     <>

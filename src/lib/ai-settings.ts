@@ -1,6 +1,5 @@
 import "server-only";
 import { query, queryOne } from "@/lib/db/client";
-import { openSecret } from "@/lib/secret-box";
 
 /**
  * AI provider settings (Phase D). One row, super-admin editable.
@@ -62,17 +61,16 @@ export function currentMonth(now = new Date()): string {
 }
 
 export type AiSettings = {
+  /** Model of the ASSISTANT purpose (kept for callers that show it). */
   model: ModelId;
   enabled: boolean;
   monthlyBudgetUsd: number;
   hourlyLimit: number;
+  dailyLimit: number;
+  storeTranscripts: boolean;
+  autoTranslate: boolean;
   /** Spend in the CURRENT month (a stored figure from an earlier month reads as 0). */
   spendUsd: number;
-  hasStoredKey: boolean;
-  storedKeyReadable: boolean;
-  keyLast4: string | null;
-  /** ANTHROPIC_API_KEY is set and therefore takes precedence over the stored key. */
-  envKey: boolean;
 };
 
 type Row = {
@@ -80,62 +78,63 @@ type Row = {
   enabled: boolean;
   monthly_budget_usd: string;
   hourly_limit: number;
+  daily_limit: number;
+  store_transcripts: boolean;
+  auto_translate: boolean;
   spend_month: string;
   spend_usd: string;
-  api_key_encrypted: string | null;
-  api_key_last4: string | null;
 };
 
-async function loadRow(): Promise<Row | null> {
-  return queryOne<Row>(
-    `select model, enabled, monthly_budget_usd::text, hourly_limit, spend_month,
-            spend_usd::text, api_key_encrypted, api_key_last4
-       from ai_settings where id = 1`
-  );
-}
-
+/**
+ * The global switch, budget and limits. Keys and models per purpose live in
+ * api_connections / ai_purposes since Phase 3 (src/lib/connections.ts).
+ */
 export async function getAiSettings(): Promise<AiSettings> {
-  const row = await loadRow();
-  const envKey = Boolean(process.env.ANTHROPIC_API_KEY);
+  const row = await queryOne<Row>(
+    `select coalesce((select model from ai_purposes where purpose = 'assistant'), s.model) as model,
+            s.enabled, s.monthly_budget_usd::text, s.hourly_limit, s.daily_limit, s.store_transcripts, s.auto_translate,
+            s.spend_month, s.spend_usd::text
+       from ai_settings s where s.id = 1`
+  );
   if (!row) {
-    return {
-      model: DEFAULT_MODEL, enabled: false, monthlyBudgetUsd: 20, hourlyLimit: 20,
-      spendUsd: 0, hasStoredKey: false, storedKeyReadable: false, keyLast4: null, envKey,
-    };
+    return { model: DEFAULT_MODEL, enabled: false, monthlyBudgetUsd: 20, hourlyLimit: 20, dailyLimit: 60, storeTranscripts: false, autoTranslate: true, spendUsd: 0 };
   }
   return {
     model: modelInfo(row.model).id,
     enabled: row.enabled,
     monthlyBudgetUsd: Number(row.monthly_budget_usd),
     hourlyLimit: row.hourly_limit,
+    dailyLimit: row.daily_limit,
+    storeTranscripts: row.store_transcripts,
+    autoTranslate: row.auto_translate,
     spendUsd: row.spend_month === currentMonth() ? Number(row.spend_usd) : 0,
-    hasStoredKey: Boolean(row.api_key_encrypted),
-    storedKeyReadable: Boolean(openSecret(row.api_key_encrypted)),
-    keyLast4: row.api_key_last4,
-    envKey,
   };
 }
 
 /**
- * The key to call the API with. ANTHROPIC_API_KEY wins when set -- for
- * anyone who would rather not store a key in the database at all. Decrypted
- * only here, in server code, per request; never returned to a client, never
- * logged, never included in an error message.
+ * Adds to this month's spend (starting a fresh month when it has rolled
+ * over) and fires the 50/80/100% budget alerts once each.
  */
-export async function resolveApiKey(): Promise<string | null> {
-  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
-  const row = await loadRow();
-  return openSecret(row?.api_key_encrypted ?? null);
-}
-
-/** Adds to this month's spend, starting a fresh month when it has rolled over. */
 export async function recordSpend(amount: number): Promise<void> {
   const month = currentMonth();
-  await query(
+  const row = await queryOne<{ spend_usd: string; monthly_budget_usd: string }>(
     `update ai_settings set
        spend_usd = case when spend_month = $1 then spend_usd + $2 else $2 end,
        spend_month = $1
-     where id = 1`,
+     where id = 1 returning spend_usd::text, monthly_budget_usd::text`,
     [month, amount]
   );
+  if (!row) return;
+  const spend = Number(row.spend_usd);
+  const limit = Number(row.monthly_budget_usd);
+  if (!(limit > 0)) return;
+  for (const t of [50, 80, 100]) {
+    if (spend >= (limit * t) / 100) {
+      await query(
+        `insert into ai_alerts (month, scope, threshold, spend_usd, limit_usd) values ($1, 'budget', $2, $3, $4)
+         on conflict (month, scope, threshold) do nothing`,
+        [month, t, spend, limit]
+      );
+    }
+  }
 }

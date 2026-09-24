@@ -45,6 +45,11 @@ async function main() {
     const applied = await runMigrations(pool, join(ROOT, "db", "migrations"), log);
     log(applied ? `applied ${applied} migration(s)` : "database schema up to date");
 
+    // Retention: stored assistant text lives 30 days, health history 30 days.
+    const pruned = await pool.query("delete from assistant_transcripts where created_at < now() - interval '30 days'");
+    await pool.query("delete from tool_health where checked_at < now() - interval '30 days'");
+    if (pruned.rowCount) log(`deleted ${pruned.rowCount} assistant transcript(s) older than 30 days`);
+
     const { rows } = await pool.query<{ n: string }>("select count(*)::text as n from tools");
     if (Number(rows[0]?.n ?? 0) === 0) {
       await pool.query(await readFile(join(ROOT, "db", "seed.sql"), "utf8"));
@@ -66,9 +71,12 @@ async function main() {
     } else {
       const hash = await bcrypt.hash(password, 12);
       for (const email of emails) {
+        // Creates the account, or fills in a password for an account row that
+        // has none yet -- never replaces a password that is already set.
         const res = await pool.query(
           `insert into admin_credentials (email, password_hash) values ($1, $2)
-           on conflict (email) do nothing`,
+           on conflict (email) do update set password_hash = excluded.password_hash
+             where admin_credentials.password_hash is null`,
           [email, hash]
         );
         log(res.rowCount ? `password created for ${email}` : `${email} already has a password -- left unchanged`);

@@ -30,6 +30,10 @@ export const fallbackTools: Tool[] = [
     accessNote: "Access by invitation",
     status: "published",
     sortOrder: 10,
+    featured: false,
+    hasIconImage: false,
+    iconVersion: "",
+    maintenance: null,
     createdAt: now,
     updatedAt: now,
     i18n: {
@@ -63,6 +67,10 @@ export const fallbackTools: Tool[] = [
     accessNote: "@azerconnect.az accounts only",
     status: "published",
     sortOrder: 20,
+    featured: false,
+    hasIconImage: false,
+    iconVersion: "",
+    maintenance: null,
     createdAt: now,
     updatedAt: now,
     i18n: {
@@ -96,6 +104,10 @@ export const fallbackTools: Tool[] = [
     accessNote: null,
     status: "planned",
     sortOrder: 30,
+    featured: false,
+    hasIconImage: false,
+    iconVersion: "",
+    maintenance: null,
     createdAt: now,
     updatedAt: now,
     i18n: {
@@ -115,6 +127,6 @@ export const fallbackTools: Tool[] = [
 
 /** Category label snapshot, same role as fallbackTools above. */
 export const fallbackCategoryLabels: CategoryLabels = {
-  HR: { az: "İnsan resursları", ru: "HR" },
-  Productivity: { az: "Məhsuldarlıq", ru: "Продуктивность" },
+  HR: { az: "İnsan resursları", ru: "HR", order: 0 },
+  Productivity: { az: "Məhsuldarlıq", ru: "Продуктивность", order: 1 },
 };

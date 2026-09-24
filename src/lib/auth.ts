@@ -1,193 +1,110 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { hasDatabaseConfig, queryOne } from "@/lib/db/client";
-import { hasSessionConfig, verifySessionToken, SESSION_COOKIE } from "@/lib/session";
+import { hasDatabaseConfig } from "@/lib/db/client";
+import { getVerifiedSession, hasSessionConfig, SESSION_COOKIE, type VerifiedSession } from "@/lib/session";
+import { can, isAdminRole, type Permission, type Role } from "@/lib/permissions";
+import { isSuperAdminEmail, mfaRequiredFor, resolveRole, superAdminEmails } from "@/lib/roles";
 
 /**
- * The admin gate: authentication AND authorization.
+ * The server-side security boundary (Admin Panel Plan, engineering rule 1).
  *
- * Authentication alone is NOT enough here, and getting this wrong would be
- * the worst bug in the project -- unchanged from the Supabase version of
- * this file. The difference is only in HOW a session is authenticated:
- * previously a Supabase Auth JWT verified against Supabase's auth server,
- * now a locally-signed session cookie verified against AUTH_SECRET (see
- * src/lib/session.ts) plus a row in admin_credentials created either by the
- * bootstrap script or the invite-accept flow -- there is no public signup
- * endpoint at all in this version, which is a strictly narrower attack
- * surface than Supabase's default-open /auth/v1/signup ever was.
+ * Every admin page and every Server Action that is not on the public
+ * allowlist (src/lib/permissions.ts) calls requirePermission(). It verifies
+ * the session through the ONE verifier (src/lib/session.ts), resolves the
+ * role (src/lib/roles.ts), checks the permission map, and enforces MFA on
+ * the session. The proxy and the nav are conveniences, never the boundary.
  *
- * So a session is only admin if its email clears one of two independent
- * checks (unchanged from Phase B, "Roles and invites"):
- *
- *   1. SUPER_ADMIN_EMAILS -- an env var, the bootstrap. A super admin
- *      defined outside the database cannot be created, promoted, or removed
- *      by anyone who compromises the database, because this code never
- *      reads super-admin status from a row.
- *   2. admin_users -- a table of ordinary admins, invited by a super admin
- *      (see src/app/admin/team/actions.ts). Presence in the table IS
- *      "active"; removing a row is how access is revoked.
- *
- * Fails CLOSED throughout. Unconfigured, unreachable, or an unlisted email
- * all resolve to "not an admin" -- never a 500, never a fall-through to the
- * protected page.
+ * Fails closed throughout: unconfigured, unreachable, revoked, expired,
+ * disabled or unlisted all resolve to "no".
  */
 
-export type AdminUser = { email: string };
+export { isSuperAdminEmail };
 
-function superAdminEmails(): string[] {
-  return (process.env.SUPER_ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-}
+export type CurrentUser = {
+  email: string;
+  role: Role;
+  session: VerifiedSession;
+};
 
-export function isSuperAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return superAdminEmails().includes(email.toLowerCase());
-}
-
-/** Every super-admin address from configuration, for the Team page's
- *  read-only "from configuration" list. Never editable from the UI. */
-export function listSuperAdminEmails(): string[] {
-  return superAdminEmails();
-}
-
-async function isInvitedAdmin(email: string): Promise<boolean> {
-  try {
-    const row = await queryOne<{ email: string }>(
-      "select email from admin_users where email = $1",
-      [email.toLowerCase()]
-    );
-    return Boolean(row);
-  } catch (err) {
-    console.error("[auth] admin_users lookup failed:", err);
-    return false;
-  }
-}
-
-async function isAdmin(email: string | null | undefined): Promise<boolean> {
-  if (!email) return false;
-  if (isSuperAdminEmail(email)) return true;
-  return isInvitedAdmin(email);
-}
-
-/** Exported for the invite-accept flow, which must know where to send a
- *  newly-set password: the admin sign-in or the assistant's. */
-export async function isAdminEmail(email: string): Promise<boolean> {
-  return isAdmin(email);
-}
-
-/** An invited staff member (Phase D). Only @azerconnect.az addresses can be
- *  in this table -- the migration's CHECK constraint enforces it. */
-export async function isStaffEmail(email: string): Promise<boolean> {
-  try {
-    const row = await queryOne<{ email: string }>(
-      "select email from staff_users where email = $1",
-      [email.toLowerCase()]
-    );
-    return Boolean(row);
-  } catch (err) {
-    console.error("[auth] staff_users lookup failed:", err);
-    return false;
-  }
-}
-
-/**
- * Who may use the assistant: invited staff (@azerconnect.az only) and
- * anyone who is already an admin. Admins are included because they are
- * explicitly authorized people who maintain the knowledge base the
- * assistant answers from; the domain rule applies to the open-ended staff
- * list, not to accounts a super admin has individually granted.
- */
-export async function canUseAssistant(email: string | null | undefined): Promise<boolean> {
-  if (!email) return false;
-  if (await isAdmin(email)) return true;
-  return isStaffEmail(email);
-}
-
-/** The signed-in email (any role), or null. */
-export async function getSessionEmail(): Promise<string | null> {
-  return currentSessionEmail();
-}
-
-export async function getAssistantUserOrNull(): Promise<{ email: string } | null> {
-  const email = await currentSessionEmail();
-  if (!email) return null;
-  return (await canUseAssistant(email)) ? { email } : null;
-}
-
-/** True once both the database and the session secret are configured --
- *  used by the login page to say "not available on this deployment" rather
- *  than offering a form that cannot work. */
 export function hasAuthConfig(): boolean {
   return hasDatabaseConfig() && hasSessionConfig();
 }
 
-async function currentSessionEmail(): Promise<string | null> {
+export function listSuperAdminEmails(): string[] {
+  return superAdminEmails();
+}
+
+async function currentSession(): Promise<VerifiedSession | null> {
   if (!hasAuthConfig()) return null;
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
-    if (!token) return null;
-    const session = await verifySessionToken(token);
-    return session?.email ?? null;
+    const jar = await cookies();
+    return await getVerifiedSession(jar.get(SESSION_COOKIE)?.value);
   } catch {
     return null;
   }
 }
 
-export async function requireAdmin(): Promise<AdminUser> {
-  const user = await getAdminOrNull();
-  // redirect() signals by throwing, so it is deliberately called OUTSIDE any
-  // try/catch -- swallowing it would render the gate inert.
-  if (!user) redirect("/admin/login");
-  return user;
+/** The signed-in person (any role, including staff), or null. */
+export async function getCurrentUser(): Promise<CurrentUser | null> {
+  const session = await currentSession();
+  if (!session) return null;
+  const role = await resolveRole(session.email);
+  if (!role) return null;
+  return { email: session.email, role, session };
 }
 
-/** Non-redirecting variant, for Server Actions that return an error shape. */
-export async function getAdminOrNull(): Promise<AdminUser | null> {
-  const email = await currentSessionEmail();
-  if (!email) return null;
-  return (await isAdmin(email)) ? { email } : null;
+export function needsMfa(user: CurrentUser): boolean {
+  return mfaRequiredFor(user.role, user.session.policy.mfaRequiredAdmins) && !user.session.mfa;
 }
 
 /**
- * Roles/theme/(later) AI settings are super-admin only -- an invited
- * ordinary admin can manage the catalog but not who else can, and not the
- * brand. This redirects rather than 404ing so a demoted admin lands
- * somewhere sensible instead of a dead end.
+ * The boundary. Redirects (which throws, so it is never inside a
+ * try/catch) when:
+ *   - there is no valid session, or the role cannot enter /admin -> /admin/login
+ *   - MFA is required but this session has no MFA -> /admin/security/mfa
+ *   - the role lacks this permission -> /admin
+ *
+ * `allowWithoutMfa` is only for the MFA set-up page itself (and sign-out),
+ * which a person must reach in order to satisfy the requirement.
  */
-export async function requireSuperAdmin(): Promise<AdminUser> {
-  const user = await requireAdmin();
-  if (!isSuperAdminEmail(user.email)) redirect("/admin");
+export async function requirePermission(
+  permission: Permission,
+  opts: { allowWithoutMfa?: boolean } = {}
+): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user || !isAdminRole(user.role)) redirect("/admin/login");
+  if (!opts.allowWithoutMfa && needsMfa(user)) redirect("/admin/security/mfa");
+  if (!can(user.role, permission)) redirect("/admin");
   return user;
 }
 
-/** Non-redirecting variant, for Server Actions. */
-export async function getSuperAdminOrNull(): Promise<AdminUser | null> {
-  const user = await getAdminOrNull();
-  if (!user || !isSuperAdminEmail(user.email)) return null;
+/** Non-throwing check for conditional UI inside an already-gated page. */
+export function userCan(user: CurrentUser | null, permission: Permission): boolean {
+  return Boolean(user && can(user.role, permission));
+}
+
+/** For the admin nav: who is signed in, never the boundary. */
+export async function getAdminContext(): Promise<CurrentUser | null> {
+  const user = await getCurrentUser();
+  if (!user || !isAdminRole(user.role)) return null;
   return user;
 }
 
-/** True when the signed-in user exists but is not on the allowlist. */
+/** Signed in with a real session, but not a role that can enter /admin. */
 export async function isSignedInButNotAdmin(): Promise<boolean> {
-  const email = await currentSessionEmail();
-  if (!email) return false;
-  return !(await isAdmin(email));
+  const session = await currentSession();
+  if (!session) return false;
+  return !isAdminRole(await resolveRole(session.email));
 }
 
-/** Convenience bundle for presentational code (the admin nav) that needs to
- *  know who is signed in and whether they are a super admin, without
- *  duplicating the two checks above. Never used as the security boundary --
- *  every page and Server Action still calls requireAdmin()/requireSuperAdmin()
- *  itself. */
-export async function getAdminContext(): Promise<{
-  user: AdminUser;
-  isSuperAdmin: boolean;
-} | null> {
-  const user = await getAdminOrNull();
-  if (!user) return null;
-  return { user, isSuperAdmin: isSuperAdminEmail(user.email) };
+/** Admins and editors sign in to /admin after an invite; staff to the assistant. */
+export async function isAdminEmail(email: string): Promise<boolean> {
+  return isAdminRole(await resolveRole(email));
+}
+
+/** The assistant's gate: any role at all (super, admin, editor or staff). */
+export async function getAssistantUserOrNull(): Promise<CurrentUser | null> {
+  const user = await getCurrentUser();
+  return user && can(user.role, "assistant.use") ? user : null;
 }

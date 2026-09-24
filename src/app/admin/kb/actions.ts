@@ -3,11 +3,19 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { query, queryOne } from "@/lib/db/client";
-import { getAdminOrNull } from "@/lib/auth";
+import { transaction, type Tx } from "@/lib/db/client";
+import { requirePermission } from "@/lib/auth";
+import { can } from "@/lib/permissions";
+import { audit } from "@/lib/audit";
+import { scheduleAutoTranslate } from "@/lib/auto-translate";
 import { parseTags } from "@/lib/validate";
+import { nextMeta, sanitizeMeta, type I18nValues } from "@/lib/translation-status";
 
-/** Knowledge base writes. Any admin (not only super admins) may edit it. */
+/**
+ * Knowledge base writes. Admins edit anything; editors create and edit
+ * DRAFTS only (enforced here, whatever the form sent). Audited in the same
+ * transaction.
+ */
 
 export type KbState = { error?: string; fieldErrors?: Record<string, string> };
 
@@ -27,8 +35,8 @@ const schema = z.object({
 });
 
 export async function saveArticle(_prev: KbState, formData: FormData): Promise<KbState> {
-  const admin = await getAdminOrNull();
-  if (!admin) return { error: "Not signed in." };
+  const admin = await requirePermission("kb.draft");
+  const full = can(admin.role, "kb.edit");
 
   const parsed = schema.safeParse({
     title: formData.get("title") ?? "",
@@ -50,7 +58,10 @@ export async function saveArticle(_prev: KbState, formData: FormData): Promise<K
   }
   const a = parsed.data;
 
-  const i18n: Record<string, Record<string, string>> = {};
+  // English-only editing: without AZ/RU fields in the form, the stored
+  // translations are kept and refreshed automatically after the save.
+  const sendsTranslations = formData.has("title_az") || formData.has("title_ru");
+  let i18n: Record<string, Record<string, string>> = {};
   for (const loc of ["az", "ru"] as const) {
     const entry = Object.fromEntries(Object.entries(a[loc]).filter(([, v]) => v.length > 0));
     if (Object.keys(entry).length) i18n[loc] = entry;
@@ -59,30 +70,131 @@ export async function saveArticle(_prev: KbState, formData: FormData): Promise<K
   const idRaw = String(formData.get("id") ?? "").trim();
   const id = idRaw ? Number(idRaw) : null;
 
-  if (id) {
-    const row = await queryOne<{ id: string }>(
-      `update kb_articles set title = $1, body = $2, i18n = $3, tags = $4, status = $5,
-         sort_order = $6, updated_by = $7
-       where id = $8 returning id::text`,
-      [a.title, a.body, JSON.stringify(i18n), a.tags, a.status, a.sortOrder, admin.email, id]
-    );
-    if (!row) return { error: "That article no longer exists." };
-  } else {
-    await query(
-      `insert into kb_articles (title, body, i18n, tags, status, sort_order, updated_by)
-       values ($1, $2, $3, $4, $5, $6, $7)`,
-      [a.title, a.body, JSON.stringify(i18n), a.tags, a.status, a.sortOrder, admin.email]
-    );
-  }
+  if (!full && a.status !== "draft") return { error: "Editors can only save drafts. An admin publishes." };
 
+  const cols = "id, title, body, i18n, tags, status, sort_order";
+  const english = { title: a.title, body: a.body };
+  let afterValues: I18nValues = { az: a.az, ru: a.ru };
+
+  let savedId: number | null = id;
+  const result = await transaction(async (tx) => {
+    if (id) {
+      const before = await tx.queryOne<Record<string, unknown>>(`select ${cols} from kb_articles where id = $1`, [id]);
+      if (!before) return "That article no longer exists.";
+      if (!full && before.status !== "draft") return "Editors cannot edit a published article.";
+      if (!sendsTranslations) {
+        i18n = (before.i18n ?? {}) as typeof i18n;
+        afterValues = flat(before.i18n);
+      }
+      const metaRow = await tx.queryOne<{ m: unknown }>("select i18n_meta as m from kb_articles where id = $1", [id]);
+      const meta = nextMeta({ english, before: flat(before.i18n), after: afterValues, meta: sanitizeMeta(metaRow?.m) });
+      await tx.query(
+        `update kb_articles set title = $1, body = $2, i18n = $3, tags = $4, status = $5,
+           sort_order = $6, updated_by = $7, i18n_meta = $9 where id = $8`,
+        [a.title, a.body, JSON.stringify(i18n), a.tags, a.status, a.sortOrder, admin.email, id, JSON.stringify(meta)]
+      );
+      await snapshotVersion(tx, id, admin.email);
+      const after = await tx.queryOne(`select ${cols} from kb_articles where id = $1`, [id]);
+      await audit(tx, { actor: admin.email, action: "kb.edit", area: "kb", target: String(id), before, after });
+    } else {
+      const created = await tx.queryOne<{ id: string }>(
+        `insert into kb_articles (title, body, i18n, tags, status, sort_order, updated_by, i18n_meta)
+         values ($1, $2, $3, $4, $5, $6, $7, $8) returning id::text`,
+        [a.title, a.body, JSON.stringify(i18n), a.tags, a.status, a.sortOrder, admin.email,
+         JSON.stringify(nextMeta({ english, before: {}, after: afterValues, meta: {} }))]
+      );
+      await snapshotVersion(tx, Number(created?.id), admin.email);
+      savedId = Number(created?.id);
+      const after = await tx.queryOne(`select ${cols} from kb_articles where id = $1`, [created?.id]);
+      await audit(tx, { actor: admin.email, action: "kb.create", area: "kb", target: created?.id ?? null, after });
+    }
+    return null;
+  });
+  if (result) return { error: result };
+
+  revalidatePath("/admin/kb");
+  if (savedId) scheduleAutoTranslate("kb", String(savedId), admin.email);
+  redirect("/admin/kb");
+}
+
+export async function deleteArticle(_prev: KbState, formData: FormData): Promise<KbState> {
+  const admin = await requirePermission("kb.edit");
+  const id = Number(String(formData.get("id") ?? ""));
+  const confirm = String(formData.get("confirm") ?? "").trim().toLowerCase();
+  if (!id) return { error: "No article specified." };
+  const error = await transaction(async (tx) => {
+    const row = await tx.queryOne<{ title: string }>("select title from kb_articles where id = $1", [id]);
+    if (!row) return "That article no longer exists.";
+    if (confirm !== "delete") return "Type delete to confirm.";
+    const before = await tx.queryOne("delete from kb_articles where id = $1 returning id, title, status", [id]);
+    await tx.query("delete from kb_article_versions where article_id = $1", [id]);
+    await audit(tx, { actor: admin.email, action: "kb.delete", area: "kb", target: String(id), before });
+    return null;
+  });
+  if (error) return { error };
   revalidatePath("/admin/kb");
   redirect("/admin/kb");
 }
 
-export async function deleteArticle(formData: FormData): Promise<void> {
-  if (!(await getAdminOrNull())) redirect("/admin/login");
-  const id = Number(String(formData.get("id") ?? ""));
-  if (id) await query("delete from kb_articles where id = $1", [id]);
+const KEEP_VERSIONS = 50;
+
+/** Every save leaves a version (the state AFTER the save); the oldest beyond 50 go. */
+async function snapshotVersion(tx: Tx, id: number, by: string) {
+  await tx.query(
+    `insert into kb_article_versions (article_id, saved_by, title, body, i18n, tags, status)
+     select id, $2, title, body, i18n, tags, status from kb_articles where id = $1`,
+    [id, by]
+  );
+  await tx.query(
+    `delete from kb_article_versions where article_id = $1 and id not in
+       (select id from kb_article_versions where article_id = $1 order by saved_at desc, id desc limit $2)`,
+    [id, KEEP_VERSIONS]
+  );
+}
+
+/**
+ * One-click restore. The restored text becomes a NEW save (and a new
+ * version), so restoring is itself undoable. An editor restoring a draft
+ * keeps it a draft.
+ */
+export async function restoreVersion(_prev: KbState, formData: FormData): Promise<KbState> {
+  const admin = await requirePermission("kb.draft");
+  const full = can(admin.role, "kb.edit");
+  const versionId = Number(String(formData.get("versionId") ?? ""));
+  if (!versionId) return { error: "No version specified." };
+  const result = await transaction(async (tx): Promise<KbState> => {
+    const v = await tx.queryOne<{ article_id: string; title: string; body: string; i18n: unknown; tags: string[]; status: string }>(
+      "select article_id::text, title, body, i18n, tags, status from kb_article_versions where id = $1",
+      [versionId]
+    );
+    if (!v) return { error: "That version no longer exists." };
+    const before = await tx.queryOne<Record<string, unknown>>(
+      "select id, title, body, i18n, i18n_meta, tags, status from kb_articles where id = $1 for update",
+      [Number(v.article_id)]
+    );
+    if (!before) return { error: "The article was deleted." };
+    if (!full && before.status !== "draft") return { error: "Editors can restore drafts only." };
+    const status = full ? v.status : "draft";
+    const meta = nextMeta({
+      english: { title: v.title, body: v.body },
+      before: flat(before.i18n),
+      after: flat(v.i18n),
+      meta: sanitizeMeta(before.i18n_meta),
+    });
+    await tx.query(
+      "update kb_articles set title = $2, body = $3, i18n = $4, tags = $5, status = $6, i18n_meta = $7, updated_by = $8 where id = $1",
+      [Number(v.article_id), v.title, v.body, JSON.stringify(v.i18n ?? {}), v.tags, status, JSON.stringify(meta), admin.email]
+    );
+    await snapshotVersion(tx, Number(v.article_id), admin.email);
+    await audit(tx, { actor: admin.email, action: "kb.restore", area: "kb", target: v.article_id, before, after: { versionId, title: v.title, status } });
+    return {};
+  });
+  if (result.error) return result;
   revalidatePath("/admin/kb");
-  redirect("/admin/kb");
+  redirect(`/admin/kb/${Number(String(formData.get("articleId") ?? "")) || ""}`);
+}
+
+function flat(v: unknown): I18nValues {
+  const o = (v ?? {}) as Record<string, Record<string, string>>;
+  return { az: { title: o.az?.title ?? "", body: o.az?.body ?? "" }, ru: { title: o.ru?.title ?? "", body: o.ru?.body ?? "" } };
 }

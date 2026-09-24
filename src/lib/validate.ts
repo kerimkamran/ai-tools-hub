@@ -121,7 +121,7 @@ export const toolInputSchema = z.object({
   healthUrl: safeUrl.nullable().default(null),
   access: z.enum(["open", "sign-in", "invite-only"]),
   accessNote: z.string().trim().max(120).nullable().default(null),
-  status: z.enum(["published", "planned", "unlisted", "archived"]),
+  status: z.enum(["draft", "published", "planned", "unlisted", "archived"]),
   sortOrder: z.coerce.number().int().min(0).max(9999).default(0),
 });
 

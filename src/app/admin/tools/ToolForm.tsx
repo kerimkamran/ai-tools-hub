@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useKeepAction } from "@/components/admin/useKeepAction";
 import Link from "next/link";
 import { saveTool, type ActionState } from "../actions";
 import type { Tool } from "@/lib/types";
+import { ToolIconPicker } from "./ToolIconPicker";
 
 const FIELD =
   "mt-1 w-full rounded-md border px-3 py-2 text-sm outline-none";
@@ -39,13 +40,6 @@ function Field({
   );
 }
 
-type Lang = "en" | "az" | "ru";
-const LANGS: Array<{ id: Lang; label: string; name: string }> = [
-  { id: "en", label: "EN", name: "English" },
-  { id: "az", label: "AZ", name: "Azərbaycanca" },
-  { id: "ru", label: "RU", name: "Русский" },
-];
-
 function TextArea({
   label, name, defaultValue, error, hint, rows = 4,
 }: {
@@ -69,90 +63,41 @@ function TextArea({
 }
 
 /**
- * EN / AZ / RU tabs over the four translatable fields (Phase C). English is
- * the base value and is required; AZ and RU are optional and fall back to
- * English on the public site. Every panel stays in the DOM (only `hidden`
- * toggles), so all three languages submit together in one save.
+ * English only. Azerbaijani and Russian are translated automatically after
+ * the save (src/lib/auto-translate.ts) and can be corrected on the
+ * Translations page; this form never overwrites them.
  */
-function TranslatableFields({ tool, e }: { tool: Tool | null; e: Record<string, string> }) {
-  const [lang, setLang] = useState<Lang>("en");
-  const tr = (loc: "az" | "ru", key: "name" | "tagline" | "description" | "accessNote") =>
-    tool?.i18n?.[loc]?.[key] ?? "";
-  const hasError = (loc: Lang) =>
-    loc === "en"
-      ? Boolean(e.name || e.tagline || e.description || e.accessNote)
-      : Object.keys(e).some((k) => k.endsWith(`_${loc}`));
-
+function EnglishFields({ tool, e }: { tool: Tool | null; e: Record<string, string> }) {
   return (
-    <div className="rounded-lg border p-4" style={{ borderColor: "var(--line)" }}>
-      <div role="tablist" aria-label="Language" className="flex gap-1">
-        {LANGS.map((l) => (
-          <button
-            key={l.id}
-            type="button"
-            role="tab"
-            id={`tab-${l.id}`}
-            aria-selected={lang === l.id}
-            aria-controls={`panel-${l.id}`}
-            onClick={() => setLang(l.id)}
-            className="rounded-md border px-3 text-sm font-medium"
-            style={{
-              minHeight: 36,
-              borderColor: lang === l.id ? "var(--foreground)" : "var(--control-border)",
-              background: lang === l.id ? "var(--foreground)" : "transparent",
-              color: lang === l.id ? "var(--background)" : "var(--muted)",
-            }}
-          >
-            {l.label}
-            {hasError(l.id) && <span style={{ color: "var(--critical)" }}> •</span>}
-          </button>
-        ))}
-      </div>
-
-      <div role="tabpanel" id="panel-en" aria-labelledby="tab-en" hidden={lang !== "en"} className="mt-4 space-y-5">
-        <Field label="Name" name="name" required defaultValue={tool?.name} error={e.name} />
-        <Field label="Tagline" name="tagline" required defaultValue={tool?.tagline}
-          error={e.tagline} maxLength={80}
-          hint="Max 80 characters. Public writing — no internal codenames or client names." />
-        <TextArea label="Description" name="description" defaultValue={tool?.description}
-          error={e.description} hint="Shown on the detail page and used as the meta description." />
-        <Field label="Access note" name="accessNote" defaultValue={tool?.accessNote ?? ""}
-          error={e.accessNote}
-          hint='One short line shown on the card, e.g. "@example.com accounts only".' />
-      </div>
-
-      {(["az", "ru"] as const).map((loc) => {
-        const name = LANGS.find((l) => l.id === loc)!.name;
-        return (
-          <div key={loc} role="tabpanel" id={`panel-${loc}`} aria-labelledby={`tab-${loc}`}
-            hidden={lang !== loc} className="mt-4 space-y-5" lang={loc}>
-            <p className="text-xs" style={{ color: "var(--faint)" }}>
-              {name}. Optional — any field left blank shows the English value instead.
-            </p>
-            <Field label={`Name (${loc.toUpperCase()})`} name={`name_${loc}`}
-              defaultValue={tr(loc, "name")} error={e[`name_${loc}`]} maxLength={60}
-              placeholder={tool?.name} hint="Usually the same as English — product names are rarely translated." />
-            <Field label={`Tagline (${loc.toUpperCase()})`} name={`tagline_${loc}`}
-              defaultValue={tr(loc, "tagline")} error={e[`tagline_${loc}`]} maxLength={80}
-              placeholder={tool?.tagline} />
-            <TextArea label={`Description (${loc.toUpperCase()})`} name={`description_${loc}`}
-              defaultValue={tr(loc, "description")} error={e[`description_${loc}`]} />
-            <Field label={`Access note (${loc.toUpperCase()})`} name={`accessNote_${loc}`}
-              defaultValue={tr(loc, "accessNote")} error={e[`accessNote_${loc}`]} maxLength={120}
-              placeholder={tool?.accessNote ?? ""} />
-          </div>
-        );
-      })}
+    <div className="space-y-5 rounded-lg border p-4" style={{ borderColor: "var(--line)" }}>
+      <p className="text-xs" style={{ color: "var(--muted)" }}>
+        Write in English. Azərbaycanca and Русский are translated automatically after you save
+        {tool ? (
+          <>
+            {" "}— to check or correct them, open{" "}
+            <Link href={`/admin/translations/tool/${tool.id}`} className="underline underline-offset-4">Translations</Link>.
+          </>
+        ) : "."}
+      </p>
+      <Field label="Name" name="name" required defaultValue={tool?.name} error={e.name} />
+      <Field label="Tagline" name="tagline" required defaultValue={tool?.tagline}
+        error={e.tagline} maxLength={80}
+        hint="Max 80 characters. Public writing — no internal codenames or client names." />
+      <TextArea label="Description" name="description" defaultValue={tool?.description}
+        error={e.description} hint="Shown on the detail page and used as the meta description." />
+      <Field label="Access note" name="accessNote" defaultValue={tool?.accessNote ?? ""}
+        error={e.accessNote}
+        hint='One short line shown on the card, e.g. "@example.com accounts only".' />
     </div>
   );
 }
 
-export function ToolForm({ tool }: { tool: Tool | null }) {
-  const [state, action, pending] = useActionState<ActionState, FormData>(saveTool, {});
+export function ToolForm({ tool, canPublish = true }: { tool: Tool | null; canPublish?: boolean }) {
+  const [state, action, pending] = useKeepAction<ActionState>(saveTool, {});
   const e = state.fieldErrors ?? {};
 
   return (
-    <form action={action} className="mt-8 space-y-5">
+    <form onSubmit={action} className="mt-8 space-y-5">
       {/* The id the server will UPDATE. Sent from the route, not the visible
           id input -- readOnly is a client hint that still submits, so the
           server must not trust it. Absent on create, which selects insert(). */}
@@ -171,14 +116,14 @@ export function ToolForm({ tool }: { tool: Tool | null }) {
       <Field label="Slug" name="slug" required defaultValue={tool?.slug} error={e.slug}
         hint="URL segment for the detail page: /tools/<slug>" />
 
-      <TranslatableFields tool={tool} e={e} />
+      <EnglishFields tool={tool} e={e} />
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Category" name="category" required defaultValue={tool?.category}
-          error={e.category} hint="English name; drives the filter chips. Translate it under Categories." />
-        <Field label="Icon" name="icon" defaultValue={tool?.icon}
-          hint="An emoji or single character." />
+          error={e.category} hint="English name; drives the filter chips and is translated automatically." />
       </div>
+
+      <ToolIconPicker tool={tool} error={e.iconImage} />
 
       <Field label="Tags" name="tags" defaultValue={tool?.tags.join(", ")}
         hint="Comma-separated. Searched but not shown on the card — though they are in the page source, so treat them as public." />
@@ -203,14 +148,22 @@ export function ToolForm({ tool }: { tool: Tool | null }) {
         </div>
         <div>
           <label htmlFor="status" className="block text-sm font-medium">Status</label>
-          <select id="status" name="status" defaultValue={tool?.status ?? "planned"}
+          <select id="status" name="status" defaultValue={tool?.status ?? "draft"}
             className={FIELD} style={FIELD_STYLE}
             aria-invalid={e.status ? true : undefined}>
-            <option value="published">Published — in the catalog</option>
-            <option value="planned">Planned — shown, not clickable</option>
-            <option value="unlisted">Unlisted — direct link only</option>
-            <option value="archived">Archived — hidden everywhere</option>
+            <option value="draft">Draft — private, not on the site</option>
+            {canPublish && (
+              <>
+                <option value="published">Published — in the catalog</option>
+                <option value="planned">Planned — shown, not clickable</option>
+                <option value="unlisted">Unlisted — direct link only</option>
+                <option value="archived">Archived — hidden everywhere</option>
+              </>
+            )}
           </select>
+          {!canPublish && (
+            <p className="mt-1 text-xs" style={{ color: "var(--faint)" }}>Editors save drafts; an admin publishes.</p>
+          )}
         </div>
       </div>
 

@@ -42,6 +42,9 @@ const en = {
   onHost: (host: string) => `on ${host}`,
   planned: "Planned",
   comingSoon: "Coming soon",
+  maintenance: "Under maintenance",
+  maintenanceUntil: (d: string) => `until ${d}`,
+  announcementClose: "Dismiss",
   waking: "Waking up…",
   live: "Live",
   backToHub: "← All tools",
@@ -89,6 +92,12 @@ const en = {
     tooLong: (max: number) => `Please keep questions under ${max} characters.`,
     error: "Something went wrong. Please try again.",
     disclaimer: "Answers can be wrong. Check anything important with the tool itself.",
+    dailyLimited: "You have reached today's limit. Please try again tomorrow.",
+    rateHelpful: "Helpful",
+    rateNotHelpful: "Not helpful",
+    rateThanks: "Thanks for the feedback.",
+    transcriptNotice:
+      "To improve the assistant, questions and answers are kept for 30 days without your name or email.",
   },
 };
 
@@ -115,6 +124,9 @@ const az: Strings = {
   onHost: (host) => `${host} ünvanında`,
   planned: "Planlaşdırılır",
   comingSoon: "Tezliklə",
+  maintenance: "Texniki işlər gedir",
+  maintenanceUntil: (d: string) => `${d} tarixinədək`,
+  announcementClose: "Bağla",
   waking: "Oyanır…",
   live: "İşləyir",
   backToHub: "← Bütün alətlər",
@@ -162,6 +174,12 @@ const az: Strings = {
     tooLong: (max) => `Sualı ${max} simvoldan qısa yazın.`,
     error: "Xəta baş verdi. Yenidən cəhd edin.",
     disclaimer: "Cavablar səhv ola bilər. Vacib məlumatı alətin özündə yoxlayın.",
+    dailyLimited: "Bugünkü limitə çatdınız. Sabah yenidən cəhd edin.",
+    rateHelpful: "Faydalıdır",
+    rateNotHelpful: "Faydalı deyil",
+    rateThanks: "Rəyiniz üçün təşəkkür edirik.",
+    transcriptNotice:
+      "Köməkçini yaxşılaşdırmaq üçün suallar və cavablar adınız və e-poçtunuz olmadan 30 gün saxlanılır.",
   },
 };
 
@@ -186,6 +204,9 @@ const ru: Strings = {
   onHost: (host) => `на ${host}`,
   planned: "Запланировано",
   comingSoon: "Скоро",
+  maintenance: "Технические работы",
+  maintenanceUntil: (d: string) => `до ${d}`,
+  announcementClose: "Закрыть",
   waking: "Запускается…",
   live: "Работает",
   backToHub: "← Все инструменты",
@@ -233,6 +254,12 @@ const ru: Strings = {
     tooLong: (max) => `Сократите вопрос до ${max} символов.`,
     error: "Что-то пошло не так. Попробуйте ещё раз.",
     disclaimer: "Ответы могут быть неточными. Важное проверяйте в самом инструменте.",
+    dailyLimited: "Вы достигли дневного лимита. Попробуйте завтра.",
+    rateHelpful: "Полезно",
+    rateNotHelpful: "Не полезно",
+    rateThanks: "Спасибо за отзыв.",
+    transcriptNotice:
+      "Чтобы улучшать помощника, вопросы и ответы хранятся 30 дней без вашего имени и e-mail.",
   },
 };
 

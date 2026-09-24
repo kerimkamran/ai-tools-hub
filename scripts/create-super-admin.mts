@@ -120,15 +120,29 @@ async function main() {
 
   try {
     const passwordHash = await bcrypt.hash(password, 12);
+    // Recovery path for a locked-out super admin: sets the password, clears
+    // two-step verification (secret + recovery codes) so they can enrol
+    // again, unlocks the account, and bumps session_version so every
+    // existing session ends.
     await pool.query(
       `insert into admin_credentials (email, password_hash, failed_attempts, locked_until)
        values ($1, $2, 0, null)
        on conflict (email) do update set
          password_hash = excluded.password_hash,
          failed_attempts = 0,
-         locked_until = null`,
+         locked_until = null,
+         disabled_at = null,
+         totp_secret_encrypted = null,
+         totp_enabled_at = null,
+         totp_last_step = null,
+         recovery_codes_hash = '{}',
+         session_version = admin_credentials.session_version + 1`,
       [email, passwordHash]
     );
+    await pool.query(
+      `insert into audit_log (actor, action, area, target) values ($1, 'accounts.server_recovery', 'accounts', $1)`,
+      [email]
+    ).catch(() => {});
     console.log(`\nCredential set for ${email}.`);
     console.log(
       "Make sure this exact address is also listed in the SUPER_ADMIN_EMAILS environment variable -- a credential alone does not grant /admin access."

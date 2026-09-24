@@ -64,9 +64,11 @@ export function filterTools(
 }
 
 /** Categories actually present in the data -- never a hardcoded list that can
- *  drift away from what is published. */
+ *  drift away from what is published -- in the admin's order, then by name. */
 export function categoriesOf(tools: Tool[]): string[] {
-  return Array.from(new Set(tools.map((t) => t.category).filter(Boolean))).sort(
-    (a, b) => a.localeCompare(b)
+  const order = new Map<string, number>();
+  for (const t of tools) if (t.category) order.set(t.category, t.categoryOrder ?? 9999);
+  return [...order.keys()].sort(
+    (a, b) => (order.get(a)! - order.get(b)!) || a.localeCompare(b)
   );
 }

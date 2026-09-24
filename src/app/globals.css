@@ -25,7 +25,7 @@
 :root {
   --background: #e7eef8; /* canvas: cool light-blue app background */
   --surface: #ffffff; /* paper: cards, inputs, nav */
-  --surface-sunken: #dae3f0;
+  --surface-sunken: #dde5f1; /* muted text on it: 4.52:1 (was #dae3f0, 4.43:1) */
   --foreground: #15263f; /* ink: body text */
   --muted: #5b6779;
   --faint: #4d5a6d;
@@ -50,6 +50,20 @@
   --critical: #b23b3b;
 
   --focus: var(--primary);
+
+  /* Design Studio (capability 9). Defaults = the look before the studio
+     existed; the studio's published look overrides them from the layout's
+     <style> block. Values are only ever from fixed lists (src/lib/design.ts). */
+  --font-active: var(--font-manrope);
+  --radius: 8px;
+  --bw: 1px;
+  --card-border: var(--line);
+  --card-shadow: none;
+  --card-shadow-hover: var(--shadow-sm);
+  --card-pad: 16px;
+  --grid-gap: 16px;
+  --accent-display: block;
+  --page-bg: var(--background);
 }
 
 :root.dark {
@@ -100,7 +114,7 @@
   --color-good: var(--good);
   --color-warning: var(--warning);
   --color-critical: var(--critical);
-  --font-sans: var(--font-manrope);
+  --font-sans: var(--font-active);
 }
 
 html {
@@ -111,10 +125,18 @@ html.dark {
 }
 
 body {
-  background: var(--background);
+  background: var(--page-bg);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Cards take their elevation from the Design Studio (flat/outlined/raised). */
+[data-card] {
+  box-shadow: var(--card-shadow);
+}
+a[data-card]:hover {
+  box-shadow: var(--card-shadow-hover);
 }
 
 /* One visible focus treatment everywhere, on a token so it inverts in dark. */

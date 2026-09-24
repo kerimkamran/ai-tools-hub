@@ -5,7 +5,7 @@ import { getStrings } from "@/lib/strings";
 import type { Locale } from "@/lib/i18n";
 import { MAX_QUESTION_CHARS } from "@/lib/assistant-limits";
 
-type Msg = { role: "user" | "assistant"; content: string; error?: boolean };
+type Msg = { role: "user" | "assistant"; content: string; error?: boolean; r?: string; tt?: string; rated?: 1 | -1 };
 
 /**
  * Links in answers: this hub's own tool pages (/xx/tools/slug) open in the
@@ -53,6 +53,7 @@ export function AssistantChat({ locale }: { locale: Locale }) {
     (code: string) =>
       ({
         rate_limited: t.rateLimited,
+        daily_limited: t.dailyLimited,
         budget: t.budgetReached,
         not_configured: t.notConfigured,
         too_long: t.tooLong(MAX_QUESTION_CHARS),
@@ -80,7 +81,14 @@ export function AssistantChat({ locale }: { locale: Locale }) {
     const setAnswer = (content: string, error = false) =>
       setMessages((prev) => {
         const copy = [...prev];
-        copy[copy.length - 1] = { role: "assistant", content, error };
+        const last = copy[copy.length - 1];
+        copy[copy.length - 1] = { ...last, role: "assistant", content, error };
+        return copy;
+      });
+    const setTokens = (r?: string, tt?: string) =>
+      setMessages((prev) => {
+        const copy = [...prev];
+        copy[copy.length - 1] = { ...copy[copy.length - 1], r, tt };
         return copy;
       });
 
@@ -114,8 +122,10 @@ export function AssistantChat({ locale }: { locale: Locale }) {
         buffer = lines.pop() ?? "";
         for (const l of lines) {
           if (!l.trim()) continue;
-          const ev = JSON.parse(l) as { t: string; v?: string; code?: string };
-          if (ev.t === "text" && ev.v) {
+          const ev = JSON.parse(l) as { t: string; v?: string; code?: string; r?: string; tt?: string };
+          if (ev.t === "meta") {
+            setTokens(ev.r, ev.tt);
+          } else if (ev.t === "text" && ev.v) {
             answer += ev.v;
             setAnswer(answer);
           } else if (ev.t === "done") {
@@ -134,6 +144,17 @@ export function AssistantChat({ locale }: { locale: Locale }) {
       abortRef.current = null;
       requestAnimationFrame(() => endRef.current?.scrollIntoView({ block: "end", behavior: "smooth" }));
     }
+  }
+
+  async function rate(index: number, rating: 1 | -1) {
+    const m = messages[index];
+    if (!m?.r || m.rated) return;
+    setMessages((prev) => prev.map((x, i) => (i === index ? { ...x, rated: rating } : x)));
+    await fetch("/api/assistant/rate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ r: m.r, tt: m.tt, rating }),
+    }).catch(() => {});
   }
 
   function reset() {
@@ -172,6 +193,26 @@ export function AssistantChat({ locale }: { locale: Locale }) {
                 m.content
               )}
             </div>
+            {m.role === "assistant" && m.r && !m.error && !(busy && i === messages.length - 1) && (
+              <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: "var(--muted)" }}>
+                {m.rated ? (
+                  <span role="status">{t.rateThanks}</span>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => rate(i, 1)} aria-label={t.rateHelpful}
+                      className="flex items-center justify-center rounded-md border"
+                      style={{ minWidth: 44, minHeight: 44, borderColor: "var(--control-border)" }}>
+                      <span aria-hidden="true">👍</span>
+                    </button>
+                    <button type="button" onClick={() => rate(i, -1)} aria-label={t.rateNotHelpful}
+                      className="flex items-center justify-center rounded-md border"
+                      style={{ minWidth: 44, minHeight: 44, borderColor: "var(--control-border)" }}>
+                      <span aria-hidden="true">👎</span>
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </li>
         ))}
       </ol>

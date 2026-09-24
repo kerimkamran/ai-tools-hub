@@ -72,6 +72,10 @@ export default function nextConfig(phase: string): NextConfig {
   const isDev = phase === PHASE_DEVELOPMENT_SERVER;
   return {
     poweredByHeader: false,
+    // Backup restore uploads a JSON file (logos included) through a Server
+    // Action; the 1 MB default is too small for that. Every action still
+    // checks its permission first (tests/permissions.test.mts).
+    experimental: { serverActions: { bodySizeLimit: "10mb" } },
     /**
      * Phase C moved every public page under a locale segment. The old
      * addresses keep working -- and keep their search-engine history -- by

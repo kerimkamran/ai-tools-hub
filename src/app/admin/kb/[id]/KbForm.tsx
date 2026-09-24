@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useKeepAction } from "@/components/admin/useKeepAction";
 import Link from "next/link";
 import { saveArticle, type KbState } from "../actions";
 
@@ -30,12 +30,12 @@ function Err({ id, msg }: { id: string; msg?: string }) {
   );
 }
 
-export function KbForm({ article }: { article: Article | null }) {
-  const [state, action, pending] = useActionState<KbState, FormData>(saveArticle, {});
+export function KbForm({ article, canPublish = true, defaultTitle }: { article: Article | null; canPublish?: boolean; defaultTitle?: string }) {
+  const [state, action, pending] = useKeepAction<KbState>(saveArticle, {});
   const e = state.fieldErrors ?? {};
 
   return (
-    <form action={action} className="mt-8 space-y-5">
+    <form onSubmit={action} className="mt-8 space-y-5">
       {article && <input type="hidden" name="id" value={article.id} />}
       {state.error && (
         <p role="alert" className="rounded-md border px-3 py-2 text-sm"
@@ -46,7 +46,7 @@ export function KbForm({ article }: { article: Article | null }) {
 
       <div>
         <label htmlFor="title" className="block text-sm font-medium">Title (English)</label>
-        <input id="title" name="title" required maxLength={200} defaultValue={article?.title}
+        <input id="title" name="title" required maxLength={200} defaultValue={article?.title ?? defaultTitle}
           className={FIELD} style={FIELD_STYLE} aria-invalid={e.title ? true : undefined} />
         <Err id="title-error" msg={e.title} />
       </div>
@@ -61,28 +61,10 @@ export function KbForm({ article }: { article: Article | null }) {
         <Err id="body-error" msg={e.body} />
       </div>
 
-      {(["az", "ru"] as const).map((loc) => (
-        <details key={loc} className="rounded-lg border p-3" style={{ borderColor: "var(--line)" }}
-          open={Boolean(article?.i18n?.[loc]) || Boolean(e[`title_${loc}`] || e[`body_${loc}`])}>
-          <summary className="cursor-pointer text-sm font-medium">
-            {loc === "az" ? "Azərbaycanca (optional)" : "Русский (optional)"}
-          </summary>
-          <div className="mt-3 space-y-4" lang={loc}>
-            <div>
-              <label htmlFor={`title_${loc}`} className="block text-sm">Title</label>
-              <input id={`title_${loc}`} name={`title_${loc}`} maxLength={200}
-                defaultValue={article?.i18n?.[loc]?.title ?? ""} className={FIELD} style={FIELD_STYLE} />
-              <Err id={`title_${loc}-error`} msg={e[`title_${loc}`]} />
-            </div>
-            <div>
-              <label htmlFor={`body_${loc}`} className="block text-sm">Body</label>
-              <textarea id={`body_${loc}`} name={`body_${loc}`} rows={8} maxLength={20000}
-                defaultValue={article?.i18n?.[loc]?.body ?? ""} className={FIELD} style={FIELD_STYLE} />
-              <Err id={`body_${loc}-error`} msg={e[`body_${loc}`]} />
-            </div>
-          </div>
-        </details>
-      ))}
+      <p className="text-xs" style={{ color: "var(--muted)" }}>
+        Write in English. Azərbaycanca and Русский are translated automatically after you save
+        {article ? " (check or correct them under Content → Translations)" : ""}.
+      </p>
 
       <div className="grid gap-5 sm:grid-cols-3">
         <div className="sm:col-span-1">
@@ -90,7 +72,7 @@ export function KbForm({ article }: { article: Article | null }) {
           <select id="status" name="status" defaultValue={article?.status ?? "draft"}
             className={FIELD} style={FIELD_STYLE}>
             <option value="draft">Draft — not used</option>
-            <option value="published">Published — used by the assistant</option>
+            {canPublish && <option value="published">Published — used by the assistant</option>}
           </select>
         </div>
         <div>

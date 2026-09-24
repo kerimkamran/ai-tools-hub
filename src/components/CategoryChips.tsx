@@ -44,9 +44,11 @@ export function CategoryChips({
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(item.value)}
-            className="shrink-0 rounded-full border px-3.5 text-sm transition-colors duration-150"
+            className="shrink-0 border px-3.5 text-sm transition-colors duration-150"
             style={{
               minHeight: 44,
+              borderRadius: "calc(var(--radius) * 3)",
+              borderWidth: "var(--bw)",
               borderColor: selected ? "var(--foreground)" : "var(--control-border)",
               background: selected ? "var(--foreground)" : "transparent",
               color: selected ? "var(--background)" : "var(--muted)",

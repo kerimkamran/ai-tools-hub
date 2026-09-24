@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Header } from "@/components/Header";
 import { AccessBadge, PlannedBadge } from "@/components/AccessBadge";
+import { ToolIcon } from "@/components/ToolIcon";
 import { getCatalogTools, getCategoryLabels, getToolBySlug } from "@/lib/registry";
 import { displayHost, localizeTool } from "@/lib/types";
 import { getStrings } from "@/lib/strings";
@@ -69,8 +70,8 @@ export default async function ToolPage({
         </Link>
 
         <div className="mt-8 flex items-start gap-4">
-          <span aria-hidden="true" className="text-4xl leading-none">
-            {tool.icon}
+          <span aria-hidden="true" className="leading-none">
+            <ToolIcon tool={tool} size={40} />
           </span>
           <div className="min-w-0">
             <h1 className="text-3xl font-semibold tracking-tight">{tool.name}</h1>
@@ -79,6 +80,12 @@ export default async function ToolPage({
             </p>
           </div>
         </div>
+
+        {tool.maintenance && (
+          <p role="status" className="mt-6 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: "var(--warning)", color: "var(--warning)" }}>
+            <span aria-hidden="true">🔧 </span>{t.maintenance}: {tool.maintenance.message}
+          </p>
+        )}
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <span className="text-xs" style={{ color: "var(--faint)" }}>
@@ -113,6 +120,7 @@ export default async function ToolPage({
             <>
               <a
                 href={tool.url}
+                data-tool-open={tool.id}
                 target="_blank"
                 rel="noopener"
                 aria-label={`${t.openTool(tool.name)} (${t.opensInNewTab})`}

@@ -7,13 +7,9 @@ import { Pool, type QueryResultRow } from "pg";
  * discipline as src/lib/registry.ts's "THE SEAM" comment, just one layer
  * lower.
  *
- * There is deliberately no "public client" vs "admin client" split anymore.
- * That split existed to bound what a LEAKED Supabase anon key could see,
- * because the anon key spoke directly to a public PostgREST endpoint (RLS
- * was the only thing standing between it and the whole table). Plain
- * Postgres has no public REST surface at all -- this pool is only ever
- * reachable from server-side Next.js code, never from a browser -- so that
- * threat model does not apply here. What replaces it: every query that must
+ * There is deliberately one client, not a "public" and an "admin" one:
+ * Postgres has no public REST surface -- this pool is only ever reachable
+ * from server-side Next.js code, never from a browser. Instead, every query that must
  * stay public-safe (the catalog, site settings) filters explicitly in its
  * own SQL (`where status in (...)`) rather than relying on a database role.
  * See registry.ts and settings.ts for where that filtering happens.
@@ -74,4 +70,40 @@ export async function queryOne<T extends QueryResultRow = QueryResultRow>(
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
   return rows[0] ?? null;
+}
+
+/** What a transaction callback can run -- the same two helpers as above,
+ *  bound to one connection so every statement shares the transaction. */
+export type Tx = {
+  query: <T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]) => Promise<T[]>;
+  queryOne: <T extends QueryResultRow = QueryResultRow>(text: string, params?: unknown[]) => Promise<T | null>;
+};
+
+/**
+ * Runs `fn` inside BEGIN/COMMIT on one pooled connection, rolling back on
+ * any throw. The Admin Panel Plan's rule: an admin change and its audit row
+ * are written in the same transaction, so there is never a change without a
+ * record or a record without a change.
+ */
+export async function transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
+  const client = await getPool().connect();
+  const tx: Tx = {
+    query: async (text, params = []) => (await client.query(text, params)).rows,
+    queryOne: async (text, params = []) => (await client.query(text, params)).rows[0] ?? null,
+  };
+  try {
+    await client.query("begin");
+    const result = await fn(tx);
+    await client.query("commit");
+    return result;
+  } catch (err) {
+    try {
+      await client.query("rollback");
+    } catch {
+      // connection already broken -- nothing more to undo
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }

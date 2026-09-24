@@ -4,19 +4,23 @@ import { getStrings } from "@/lib/strings";
 import { localePath, type Locale } from "@/lib/i18n";
 import { AccessBadge, PlannedBadge } from "./AccessBadge";
 import { HealthDot } from "./HealthDot";
+import { ToolIcon } from "./ToolIcon";
 
 const CARD_BASE =
-  "group relative flex h-full flex-col gap-3 rounded-lg border p-4 transition-[border-color,box-shadow] duration-150";
+  "group relative flex h-full flex-col gap-3 border transition-[border-color,box-shadow] duration-150";
 
-function Body({ tool, planned, locale }: { tool: Tool; planned: boolean; locale: Locale }) {
+/** Shape comes from the Design Studio variables (globals.css). */
+const CARD_SHAPE = { borderRadius: "var(--radius)", borderWidth: "var(--bw)", padding: "var(--card-pad)" } as const;
+
+function Body({ tool, planned, locale, adminIcons }: { tool: Tool; planned: boolean; locale: Locale; adminIcons?: boolean }) {
   const host = displayHost(tool.url);
   const strings = getStrings(locale);
 
   return (
     <>
       <div className="flex items-start justify-between gap-3">
-        <span aria-hidden="true" className="text-[26px] leading-none">
-          {tool.icon}
+        <span aria-hidden="true" className="leading-none">
+          <ToolIcon tool={tool} size={26} admin={adminIcons} />
         </span>
         {!planned && (
           <svg
@@ -51,6 +55,12 @@ function Body({ tool, planned, locale }: { tool: Tool; planned: boolean; locale:
         {planned ? <PlannedBadge label={strings.comingSoon} /> : <AccessBadge access={tool.access} locale={locale} />}
       </div>
 
+      {tool.maintenance && (
+        <p className="text-xs leading-snug" style={{ color: "var(--warning)" }}>
+          {tool.maintenance.message}
+        </p>
+      )}
+
       {tool.accessNote && (
         <p className="text-xs leading-snug" style={{ color: "var(--muted)" }}>
           {tool.accessNote}
@@ -63,13 +73,30 @@ function Body({ tool, planned, locale }: { tool: Tool; planned: boolean; locale:
         <span className="truncate text-[11px]" style={{ color: "var(--faint)" }}>
           {planned ? "" : host}
         </span>
-        {!planned && tool.healthUrl && <HealthDot toolId={tool.id} locale={locale} />}
+        {tool.maintenance ? (
+          <MaintenanceBadge tool={tool} locale={locale} />
+        ) : (
+          !planned && tool.healthUrl && <HealthDot toolId={tool.id} locale={locale} />
+        )}
       </div>
     </>
   );
 }
 
-export function ToolCard({ tool, locale }: { tool: Tool; locale: Locale }) {
+/** Replaces the health dot while a tool is in maintenance (capability 10). */
+function MaintenanceBadge({ tool, locale }: { tool: Tool; locale: Locale }) {
+  const t = getStrings(locale);
+  const until = tool.maintenance?.until
+    ? new Date(new Date(tool.maintenance.until).getTime() - 1).toLocaleDateString(locale === "en" ? "en-GB" : locale, { timeZone: "Asia/Baku", day: "numeric", month: "short" })
+    : null;
+  return (
+    <span className="shrink-0 text-[11px] font-medium" style={{ color: "var(--warning)" }}>
+      🔧 {t.maintenance}{until ? ` · ${t.maintenanceUntil(until)}` : ""}
+    </span>
+  );
+}
+
+export function ToolCard({ tool, locale, adminIcons = false }: { tool: Tool; locale: Locale; adminIcons?: boolean }) {
   const strings = getStrings(locale);
   const planned = tool.status === "planned" || !tool.url;
 
@@ -86,10 +113,11 @@ export function ToolCard({ tool, locale }: { tool: Tool; locale: Locale }) {
        */
       <div
         aria-disabled="true"
+        data-card
         className={CARD_BASE}
-        style={{ borderColor: "var(--line)", background: "var(--surface-sunken)" }}
+        style={{ ...CARD_SHAPE, borderColor: "var(--card-border)", background: "var(--surface-sunken)" }}
       >
-        <Body tool={tool} planned locale={locale} />
+        <Body tool={tool} planned locale={locale} adminIcons={adminIcons} />
       </div>
     );
   }
@@ -124,11 +152,13 @@ export function ToolCard({ tool, locale }: { tool: Tool; locale: Locale }) {
       target="_blank"
       rel="noopener"
       aria-label={label}
-      className={`${CARD_BASE} hover:shadow-[var(--shadow-sm)]`}
-      style={{ borderColor: "var(--line)", background: "var(--surface)" }}
+      className={CARD_BASE}
+      style={{ ...CARD_SHAPE, borderColor: "var(--card-border)", background: "var(--surface)" }}
       data-tool-card
+      data-card
+      data-tool-open={tool.id}
     >
-      <Body tool={tool} planned={false} locale={locale} />
+      <Body tool={tool} planned={false} locale={locale} adminIcons={adminIcons} />
     </a>
   );
 }

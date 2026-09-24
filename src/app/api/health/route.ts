@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCatalogTools } from "@/lib/registry";
-import { checkPublicHttpsUrl } from "@/lib/validate";
+import { hasDatabaseConfig } from "@/lib/db/client";
+import { probeUrl, recordHealth, type HealthOutcome } from "@/lib/health";
 import type { ToolHealth } from "@/lib/types";
 
 /**
@@ -32,47 +33,30 @@ import type { ToolHealth } from "@/lib/types";
  */
 export const revalidate = 1800;
 
-const TIMEOUT_MS = 3000;
-
-async function probe(url: string): Promise<ToolHealth> {
-  const check = checkPublicHttpsUrl(url);
-  if (!check.ok) return "unknown";
-
-  const started = Date.now();
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-  try {
-    const res = await fetch(check.url.toString(), {
-      method: "GET",
-      redirect: "manual",
-      signal: controller.signal,
-      headers: { accept: "*/*" },
-      cache: "no-store",
-    });
-    // Body is intentionally never read.
-    if (!res.ok && res.status !== 0) return "unknown";
-    return Date.now() - started > 1500 ? "slow" : "up";
-  } catch {
-    // A timeout on a free-tier host that sleeps when idle is the expected
-    // case, not an error: report it as "waking up" rather than "down", since
-    // the request would in fact succeed given enough time.
-    return "slow";
-  } finally {
-    clearTimeout(timer);
-  }
+/** Public view of a probe: timeouts on a sleeping free-tier host read as
+ *  "slow" (waking up), never as "down". */
+function publicState(outcome: HealthOutcome | undefined): ToolHealth {
+  if (outcome === "up") return "up";
+  if (outcome === "slow" || outcome === "timeout") return "slow";
+  return "unknown";
 }
 
 export async function GET() {
   const tools = await getCatalogTools();
-  const targets = tools.filter((t) => t.healthUrl && t.status === "published");
+  // Tools in maintenance are not probed: the badge says why, and a probe would only wake them.
+  const targets = tools.filter((t) => t.healthUrl && t.status === "published" && !t.maintenance);
 
   const entries = await Promise.all(
-    targets.map(async (t) => [t.id, await probe(t.healthUrl as string)] as const)
+    targets.map(async (t) => [t.id, await probeUrl(t.healthUrl as string)] as const)
   );
 
   const result: Record<string, ToolHealth> = {};
-  for (const [id, state] of entries) {
+  for (const [id, r] of entries) {
+    // Every real probe leaves a row, so the admin catalog shows history.
+    if (r && hasDatabaseConfig()) {
+      await recordHealth(id, r.outcome, r.durationMs, "probe").catch(() => {});
+    }
+    const state = publicState(r?.outcome);
     if (state !== "unknown") result[id] = state;
   }
 

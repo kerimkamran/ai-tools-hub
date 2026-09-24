@@ -26,8 +26,8 @@ export default async function InviteAcceptPage({
   // source of truth for "now" here, and comparing in the query also avoids
   // an impure Date.now() call in a component body.
   const [validRow, anyRow] = await Promise.all([
-    queryOne<{ email: string }>(
-      "select email from invite_tokens where token_hash = $1 and expires_at > now()",
+    queryOne<{ email: string; purpose: string }>(
+      "select email, purpose from invite_tokens where token_hash = $1 and expires_at > now()",
       [tokenHash]
     ),
     queryOne<{ email: string }>(
@@ -39,11 +39,11 @@ export default async function InviteAcceptPage({
   if (!validRow) {
     return (
       <main className={SHELL}>
-        <h1 className="text-xl font-semibold tracking-tight">Invite link invalid</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Link not valid</h1>
         <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
           {anyRow
-            ? "This invite link has expired. Ask a super admin to send a new one."
-            : "This invite link is invalid. Ask a super admin to send a new one."}
+            ? "This link has expired. Ask an administrator for a new one."
+            : "This link is invalid or has already been used. Ask an administrator for a new one."}
         </p>
       </main>
     );
@@ -52,9 +52,13 @@ export default async function InviteAcceptPage({
 
   return (
     <main className={SHELL}>
-      <h1 className="text-xl font-semibold tracking-tight">Set your password</h1>
+      <h1 className="text-xl font-semibold tracking-tight">
+        {row.purpose === "reset" ? "Choose a new password" : "Set your password"}
+      </h1>
       <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-        You&apos;ve been invited to One.Simple. Choose a password to finish.
+        {row.purpose === "reset"
+          ? "Setting a new password signs this account out everywhere else."
+          : "You've been invited to One.Simple. Choose a password to finish."}
       </p>
       <AcceptInviteForm token={token} email={row.email} />
     </main>

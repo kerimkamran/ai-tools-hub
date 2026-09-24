@@ -41,7 +41,7 @@ Public visitor ──► AI Tools Hub (Next.js, Render web service)
                          ▼
               Plain Postgres (Render managed database)
               reached only from server code — never from the browser,
-              no public REST endpoint, no RLS needed
+              no public REST endpoint, no third-party backend
 
     ── plain links ──►  Vantage · SparkLab · (CV Screener, planned)
 ```
@@ -204,9 +204,9 @@ Two things it will not let you do, on purpose:
   with the specific ratios that came up short, and nothing is written.
 
 Logo uploads are stored inline as a base64 `data:` URL in
-`site_settings.logo_url` — Render has no object-storage equivalent to
-Supabase Storage, and a logo is small and rarely changed, so a new external
-dependency wasn't worth adding for it. PNG/JPEG/WebP only, 512 KB cap,
+`site_settings.logo_url` — the app runs entirely on Render (web service +
+Render Postgres) with no object storage, and a logo is small and rarely
+changed, so a new external dependency wasn't worth adding for it. PNG/JPEG/WebP only, 512 KB cap,
 enforced in the Server Action before the bytes are ever encoded. SVG is
 rejected — it can carry `<script>`, and a raster logo covers the need.
 
@@ -247,6 +247,41 @@ knowledge base; answers come back in the language of the question.
 - **Cost**: spend is computed from the API's own token counts at the
   published per-model prices (`src/lib/ai-settings.ts`) and the assistant
   switches itself off at the monthly budget.
+
+## Admin panel (Admin Panel Plan, phases 1–5)
+
+Everything below runs on Render (web service + Render Postgres); there is no
+other backend.
+
+- **People & security** — accounts (super admin / admin / editor / staff),
+  security policy, two-step sign-in (TOTP + recovery codes) required for super
+  admins, an append-only audit log with CSV export.
+- **Content** — catalog with drafts, publish/unlist/archive, featuring,
+  ordering, duplicate, preview in EN/AZ/RU, health checks, **maintenance mode**
+  per tool, and **tool icons** (curated glyphs or an uploaded PNG/JPEG/WebP
+  logo, served from `/tool-icon/<id>`). Categories (create, rename, merge,
+  reorder). Knowledge base with version history, restore, a context meter and a
+  test console that answers from drafts.
+- **English only** — admins write English; after every save the new or
+  changed English is translated into Azerbaijani and Russian automatically
+  (the "Translation drafts" AI purpose) and stored. Content → Translations
+  shows coverage and allows corrections. With AI off, visitors see English.
+- **AI** — API connections for Anthropic, OpenAI, Gemini, Azure OpenAI,
+  Mistral or a custom API (keys encrypted, shown by last four only, tested
+  without ever reading a response body; only Anthropic can power a purpose
+  today), purposes, monthly budget with 50/80/100 % alerts, per-connection
+  caps, hourly and daily per-person limits, thumbs ratings and opt-in 30-day
+  transcripts for super admins.
+- **Brand & operations** — Design Studio (presets, 11 colour tokens behind a
+  contrast gate, four fonts checked for ə/Ə and Cyrillic, radius, borders,
+  cards, spacing, background, accent rule; draft → preview → publish,
+  versions with one-click rollback, date-based schedules), announcements in
+  three languages, cookie-free daily usage totals, and JSON backup & restore
+  (validated, dry-run diff, typed confirmation, automatic export first).
+
+Public pages stay static (ISR, 60 s) and cookie-free; anything date-based
+(schedules, announcements, maintenance) is decided when a page is rendered, so
+it takes effect within about a minute.
 
 ## Adding a tool
 

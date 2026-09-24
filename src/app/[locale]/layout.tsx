@@ -4,6 +4,7 @@ import { LOCALES, LOCALE_HREFLANG, isLocale } from "@/lib/i18n";
 import { getStrings } from "@/lib/strings";
 import { getSiteSettings, localizedTagline } from "@/lib/settings";
 import { localeAlternates } from "@/lib/alternates";
+import { UsageBeacon } from "@/components/UsageBeacon";
 
 /**
  * Every public page lives under /en, /az or /ru and is prerendered once per
@@ -63,6 +64,7 @@ export default async function LocaleLayout({
   return (
     <div lang={LOCALE_HREFLANG[locale]}>
       <script dangerouslySetInnerHTML={{ __html: setLang }} />
+      <UsageBeacon locale={locale} />
       {children}
     </div>
   );

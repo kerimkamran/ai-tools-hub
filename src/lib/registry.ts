@@ -11,21 +11,26 @@ import { sanitizeI18n } from "@/lib/i18n";
  * swapping the datastore, adding a cache, or changing the fallback strategy is
  * a change to this one file. No page or component knows where tools come from.
  *
- * Previously two Supabase clients (anon vs service-role) enforced the
- * public/admin split via Row Level Security. Plain Postgres has no public
- * REST endpoint for RLS to guard -- this pool is reachable only from this
- * app's own server code -- so the split is now explicit in each function's
- * own SQL: getCatalogTools()/getToolBySlug() filter `status` themselves;
+ * The database (Render Postgres) is reachable only from this app's own
+ * server code, so the public/admin split is explicit in each function's own
+ * SQL: getCatalogTools()/getToolBySlug() filter `status` themselves;
  * the *ForAdmin() functions do not. See src/lib/db/client.ts's header
  * comment for the full reasoning.
  */
 
 const COLUMNS =
-  "id,slug,name,tagline,description,category,tags,icon,url,health_url,access,access_note,status,sort_order,created_at,updated_at,i18n";
+  "id,slug,name,tagline,description,category,tags,icon,url,health_url,access,access_note,status,sort_order,featured,created_at,updated_at,i18n," +
+  "maintenance_message,maintenance_i18n,maintenance_until," +
+  // Never the image itself: pages link to /tool-icon/<id>?v=<version>.
+  "(icon_image is not null) as has_icon_image,left(md5(coalesce(icon_image,'')),8) as icon_version";
 
+/** Featured tools first, then the admin's manual order, then name. */
 function sortTools(tools: Tool[]): Tool[] {
   return [...tools].sort(
-    (a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)
+    (a, b) =>
+      Number(b.featured) - Number(a.featured) ||
+      a.sortOrder - b.sortOrder ||
+      a.name.localeCompare(b.name)
   );
 }
 
@@ -62,28 +67,25 @@ export async function getCatalogTools(): Promise<Tool[]> {
  * Detail page lookup. A single query, keyed on one exact slug, excluding
  * only 'archived'.
  *
- * The Supabase version split this into two steps (anon lookup, then a
- * service-role fallback for 'unlisted') because the anon key spoke to a
- * public PostgREST endpoint where any status admitted to a policy becomes
- * enumerable by anyone. That risk doesn't exist here: this query only ever
- * runs from this one Next.js route, which only ever supplies one slug at a
- * time -- there is no way to reach it with an open-ended filter, so a
- * single query keyed on the slug is exactly as unenumerable as the
- * two-step version was, with less code.
+ * This query only ever runs from this one Next.js route, which only ever
+ * supplies one slug at a time -- there is no way to reach it with an
+ * open-ended filter, so 'unlisted' tools stay reachable by direct link but
+ * cannot be enumerated.
  */
 export async function getToolBySlug(slug: string): Promise<Tool | null> {
   if (!hasDatabaseConfig()) {
-    return fallbackTools.find((t) => t.slug === slug && t.status !== "archived") ?? null;
+    return fallbackTools.find((t) => t.slug === slug && t.status !== "archived" && t.status !== "draft") ?? null;
   }
   try {
     const row = await queryOne<ToolRow>(
-      `select ${COLUMNS} from tools where slug = $1 and status <> 'archived'`,
+      // Drafts are private: never reachable from any public URL.
+      `select ${COLUMNS} from tools where slug = $1 and status not in ('archived', 'draft')`,
       [slug]
     );
     return row ? rowToTool(row) : null;
   } catch (err) {
     console.error("[registry] slug lookup failed, using static fallback:", err);
-    return fallbackTools.find((t) => t.slug === slug && t.status !== "archived") ?? null;
+    return fallbackTools.find((t) => t.slug === slug && t.status !== "archived" && t.status !== "draft") ?? null;
   }
 }
 
@@ -105,13 +107,13 @@ export async function toolIdExists(id: string): Promise<boolean> {
   return Boolean(row);
 }
 
-type CategoryRow = { name: string; i18n: unknown };
+type CategoryRow = { name: string; i18n: unknown; sort_order?: number };
 
 function rowsToCategoryLabels(rows: CategoryRow[]): CategoryLabels {
   const out: CategoryLabels = {};
   for (const r of rows) {
     const map = sanitizeI18n(r.i18n, ["label"] as const);
-    out[r.name] = { az: map.az?.label, ru: map.ru?.label };
+    out[r.name] = { az: map.az?.label, ru: map.ru?.label, order: r.sort_order ?? 0 };
   }
   return out;
 }
@@ -125,7 +127,7 @@ function rowsToCategoryLabels(rows: CategoryRow[]): CategoryLabels {
 export async function getCategoryLabels(): Promise<CategoryLabels> {
   if (!hasDatabaseConfig()) return fallbackCategoryLabels;
   try {
-    return rowsToCategoryLabels(await query<CategoryRow>("select name, i18n from categories"));
+    return rowsToCategoryLabels(await query<CategoryRow>("select name, i18n, sort_order from categories"));
   } catch (err) {
     console.error("[registry] categories query failed, using static fallback:", err);
     return fallbackCategoryLabels;
@@ -134,23 +136,32 @@ export async function getCategoryLabels(): Promise<CategoryLabels> {
 
 /** Admin: every category actually used by a tool, plus any stored label rows. */
 export async function getCategoriesForAdmin(): Promise<
-  Array<{ name: string; az: string; ru: string; toolCount: number }>
+  Array<{ name: string; az: string; ru: string; toolCount: number; order: number; meta: unknown }>
 > {
   const [used, stored] = await Promise.all([
     query<{ category: string; n: string }>(
       "select category, count(*)::text as n from tools group by category"
     ),
-    query<CategoryRow>("select name, i18n from categories"),
+    query<CategoryRow & { i18n_meta: unknown }>("select name, i18n, sort_order, i18n_meta from categories"),
   ]);
   const labels = rowsToCategoryLabels(stored);
+  const metaByName = new Map(stored.map((s) => [s.name, s.i18n_meta]));
   const names = new Set([...used.map((u) => u.category), ...stored.map((s) => s.name)]);
   const counts = new Map(used.map((u) => [u.category, Number(u.n)]));
   return [...names]
-    .sort((a, b) => a.localeCompare(b))
     .map((name) => ({
       name,
       az: labels[name]?.az ?? "",
       ru: labels[name]?.ru ?? "",
       toolCount: counts.get(name) ?? 0,
-    }));
+      order: labels[name]?.order ?? 9999,
+      meta: metaByName.get(name) ?? {},
+    }))
+    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+}
+
+/** Admin: i18n_meta per tool (translation provenance), keyed by id. */
+export async function getToolMetaForAdmin(): Promise<Map<string, unknown>> {
+  const rows = await query<{ id: string; i18n_meta: unknown }>("select id, i18n_meta from tools");
+  return new Map(rows.map((r) => [r.id, r.i18n_meta]));
 }

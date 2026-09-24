@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import { IBM_Plex_Sans, Inter, Manrope, Noto_Sans } from "next/font/google";
 import "./globals.css";
 import { siteUrl } from "@/lib/site";
 import { buildThemeStyle, getSiteSettings } from "@/lib/settings";
@@ -18,6 +18,22 @@ const manrope = Manrope({
   subsets: ["latin", "latin-ext", "cyrillic"],
   variable: "--font-manrope",
   display: "swap",
+});
+
+/**
+ * The Design Studio's curated alternatives (capability 9). Each was checked
+ * to render Azerbaijani (ə Ə ğ ı İ ş ç ö ü) and Cyrillic before being added.
+ * Self-hosted like Manrope; only the default is preloaded, and a browser
+ * downloads one of these only when the published look selects it.
+ */
+const inter = Inter({ subsets: ["latin", "latin-ext", "cyrillic"], variable: "--font-inter", display: "swap", preload: false });
+const noto = Noto_Sans({ subsets: ["latin", "latin-ext", "cyrillic"], variable: "--font-noto", display: "swap", preload: false });
+const plex = IBM_Plex_Sans({
+  subsets: ["latin", "latin-ext", "cyrillic"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-plex",
+  display: "swap",
+  preload: false,
 });
 
 const DESCRIPTION = strings.siteDescription;
@@ -44,6 +60,8 @@ export async function generateMetadata(): Promise<Metadata> {
       description: DESCRIPTION,
     },
     robots: { index: true, follow: true },
+    // A favicon from the uploaded raster logo (served by /brand-icon).
+    ...(settings.logoUrl ? { icons: { icon: "/brand-icon" } } : {}),
   };
 }
 
@@ -76,7 +94,7 @@ export default async function RootLayout({
   const settings = await getSiteSettings();
 
   return (
-    <html lang="en" className={manrope.variable} suppressHydrationWarning>
+    <html lang="en" className={`${manrope.variable} ${inter.variable} ${noto.variable} ${plex.variable}`} suppressHydrationWarning>
       <head>
         {/* Theme editor overrides, one file below the globals.css import so
             they win on specificity ties with its :root/:root.dark rules.

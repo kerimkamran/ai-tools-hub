@@ -1,12 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db/client";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
-import { canUseAssistant } from "@/lib/auth";
-import { costUsd, getAiSettings, modelInfo, recordSpend, resolveApiKey } from "@/lib/ai-settings";
+import { SESSION_COOKIE, getVerifiedSession, refreshSessionToken, sessionCookieOptions } from "@/lib/session";
+import { resolveRole } from "@/lib/roles";
+import { can } from "@/lib/permissions";
+import { randomBytes } from "node:crypto";
+import { costUsd, getAiSettings, modelInfo, recordSpend } from "@/lib/ai-settings";
+import { recordConnectionSpend, resolvePurpose } from "@/lib/connections";
+import { bumpUsage } from "@/lib/usage";
 import { getCatalogTools } from "@/lib/registry";
 import { getPublishedArticles } from "@/lib/kb";
-import { buildContext, INSTRUCTIONS, wrapQuestion } from "@/lib/assistant-prompt";
+import { assistantSystem, wrapQuestion } from "@/lib/assistant-prompt";
 import { LOCALES } from "@/lib/i18n";
 import { MAX_QUESTION_CHARS } from "@/lib/assistant-limits";
 
@@ -58,10 +62,21 @@ export async function POST(request: Request) {
     .find((c) => c.startsWith(`${SESSION_COOKIE}=`))
     ?.slice(SESSION_COOKIE.length + 1);
   if (!process.env.AUTH_SECRET || !process.env.DATABASE_URL) return fail(503, "not_configured");
-  const session = token ? await verifySessionToken(decodeURIComponent(token)) : null;
+  // The same single verifier as /admin: a signed-out-everywhere, disabled,
+  // expired or deleted account is refused here on its very next request.
+  const session = token ? await getVerifiedSession(decodeURIComponent(token)) : null;
   if (!session) return fail(401, "unauthorized");
-  if (!(await canUseAssistant(session.email))) return fail(403, "forbidden");
+  if (!can(await resolveRole(session.email), "assistant.use")) return fail(403, "forbidden");
   const email = session.email.toLowerCase();
+
+  // Staff never visit /admin, so this route slides their cookie itself --
+  // only ever AFTER the verifier above has accepted it.
+  const refreshed = session.refreshDue
+    ? { value: await refreshSessionToken(session), opts: sessionCookieOptions(session.policy, session.at) }
+    : null;
+  const setCookie = refreshed
+    ? `${SESSION_COOKIE}=${refreshed.value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${refreshed.opts.maxAge}${refreshed.opts.secure ? "; Secure" : ""}`
+    : null;
 
   // --- what they asked ------------------------------------------------------
   let body: z.infer<typeof bodySchema>;
@@ -84,28 +99,38 @@ export async function POST(request: Request) {
 
   // --- is it switched on, and can we afford it ------------------------------
   const settings = await getAiSettings();
-  const apiKey = await resolveApiKey();
-  if (!settings.enabled || !apiKey) return fail(503, "not_configured");
+  if (!settings.enabled) return fail(503, "not_configured");
+  const serving = await resolvePurpose("assistant");
+  if (!serving.ok) return fail(serving.code === "connection_cap" ? 429 : 503, serving.code === "connection_cap" ? "budget" : "not_configured");
   if (settings.spendUsd >= settings.monthlyBudgetUsd) return fail(429, "budget");
+  const apiKey = serving.apiKey;
 
-  const recent = await queryOne<{ n: string }>(
-    "select count(*)::text as n from assistant_requests where email = $1 and created_at > now() - interval '1 hour'",
+  const recent = await queryOne<{ hour: string; day: string }>(
+    `select count(*) filter (where created_at > now() - interval '1 hour')::text as hour,
+            count(*)::text as day
+       from assistant_requests
+      where email = $1 and purpose = 'assistant' and created_at > now() - interval '24 hours'`,
     [email]
   );
-  if (Number(recent?.n ?? 0) >= settings.hourlyLimit) return fail(429, "rate_limited");
+  if (Number(recent?.hour ?? 0) >= settings.hourlyLimit) return fail(429, "rate_limited");
+  if (Number(recent?.day ?? 0) >= settings.dailyLimit) return fail(429, "daily_limited");
+
+  // Rating tokens: one for the usage row (lets the asker rate it), and --
+  // only when text storage is on -- a SEPARATE one for the transcript, so
+  // nothing in the database joins a transcript to a person.
+  const rateToken = randomBytes(18).toString("base64url");
+  const transcriptToken = settings.storeTranscripts ? randomBytes(18).toString("base64url") : null;
 
   const started = await queryOne<{ id: string }>(
-    "insert into assistant_requests (email, model) values ($1, $2) returning id::text",
-    [email, settings.model]
+    "insert into assistant_requests (email, model, purpose, connection_id, locale, rate_token) values ($1, $2, 'assistant', $3, $4, $5) returning id::text",
+    [email, serving.model, serving.connectionId, body.locale, rateToken]
   );
   const requestId = started?.id;
+  await bumpUsage("assistant_question", "", body.locale);
 
   // --- build the prompt -----------------------------------------------------
   const [tools, articles] = await Promise.all([getCatalogTools(), getPublishedArticles()]);
-  const system: Anthropic.TextBlockParam[] = [
-    { type: "text", text: INSTRUCTIONS },
-    { type: "text", text: buildContext(tools, articles), cache_control: { type: "ephemeral" } },
-  ];
+  const system: Anthropic.TextBlockParam[] = assistantSystem(tools, articles);
   const messages: Anthropic.MessageParam[] = turns.map((m) => ({
     role: m.role,
     content:
@@ -115,7 +140,7 @@ export async function POST(request: Request) {
   }));
 
   const client = new Anthropic({ apiKey, maxRetries: 1, timeout: 60_000 });
-  const model = settings.model;
+  const model = serving.model;
   const encoder = new TextEncoder();
   const line = (obj: unknown) => encoder.encode(`${JSON.stringify(obj)}\n`);
 
@@ -134,9 +159,26 @@ export async function POST(request: Request) {
           },
           { signal: request.signal }
         );
-        s.on("text", (delta) => controller.enqueue(line({ t: "text", v: delta })));
+        controller.enqueue(line({ t: "meta", r: rateToken, ...(transcriptToken ? { tt: transcriptToken } : {}) }));
+        let answer = "";
+        s.on("text", (delta) => {
+          answer += delta;
+          controller.enqueue(line({ t: "text", v: delta }));
+        });
         const final = await s.finalMessage();
         usage = final.usage;
+        if (transcriptToken) {
+          // Opt-in text storage (Admin Panel Plan, Decision 1): no email, 30 days.
+          try {
+            await query(
+              "insert into assistant_transcripts (locale, question, answer, rate_token) values ($1, $2, $3, $4)",
+              [body.locale, last.content.slice(0, MAX_QUESTION_CHARS), answer.slice(0, MAX_ANSWER_CHARS), transcriptToken]
+            );
+            await query("delete from assistant_transcripts where created_at < now() - interval '30 days'");
+          } catch (e) {
+            console.error("[assistant] transcript not stored:", e instanceof Error ? e.message : e);
+          }
+        }
         controller.enqueue(line({ t: "done" }));
       } catch (err) {
         status = "error";
@@ -174,7 +216,10 @@ export async function POST(request: Request) {
               ]
             );
           }
-          if (cost > 0) await recordSpend(cost);
+          if (cost > 0) {
+            await recordSpend(cost);
+            await recordConnectionSpend(serving.connectionId, cost);
+          }
         } catch (e) {
           console.error("[assistant] failed to record usage:", e instanceof Error ? e.message : e);
         }
@@ -182,11 +227,11 @@ export async function POST(request: Request) {
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "application/x-ndjson; charset=utf-8",
-      "Cache-Control": "no-store",
-      "X-Content-Type-Options": "nosniff",
-    },
+  const headers = new Headers({
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
   });
+  if (setCookie) headers.append("Set-Cookie", setCookie);
+  return new Response(stream, { headers });
 }

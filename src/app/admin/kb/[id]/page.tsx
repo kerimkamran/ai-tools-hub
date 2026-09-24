@@ -1,35 +1,32 @@
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/auth";
-import { getArticleForAdmin } from "@/lib/kb";
-import { deleteArticle } from "../actions";
+import { requirePermission, userCan } from "@/lib/auth";
+import { getArticleForAdmin, getArticleVersions } from "@/lib/kb";
 import { KbForm } from "./KbForm";
+import { KbDelete, KbHistory } from "./KbHistory";
 
 export const dynamic = "force-dynamic";
 
-export default async function KbEditPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireAdmin();
+export default async function KbEditPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ title?: string }> }) {
+  const user = await requirePermission("kb.draft");
+  const full = userCan(user, "kb.edit");
   const { id } = await params;
   const isNew = id === "new";
   const numericId = Number(id);
   if (!isNew && !Number.isInteger(numericId)) notFound();
   const article = isNew ? null : await getArticleForAdmin(numericId);
   if (!isNew && !article) notFound();
+  if (!full && article && article.status !== "draft") notFound();
 
   return (
     <main className="mx-auto max-w-[720px] px-4 py-10">
       <h1 className="text-xl font-semibold tracking-tight">
         {isNew ? "Add article" : `Edit “${article?.title}”`}
       </h1>
-      <KbForm article={article} />
+      <KbForm article={article} canPublish={full} defaultTitle={isNew ? String((await searchParams).title ?? "").slice(0, 200) : undefined} />
       {article && (
-        <form action={deleteArticle} className="mt-10 border-t pt-6" style={{ borderColor: "var(--line)" }}>
-          <input type="hidden" name="id" value={article.id} />
-          <button type="submit" className="rounded border px-3 py-1.5 text-xs"
-            style={{ borderColor: "var(--control-border)", color: "var(--critical)" }}>
-            Delete this article
-          </button>
-        </form>
+        <KbHistory articleId={article.id} versions={await getArticleVersions(article.id)} canRestore={full || article.status === "draft"} />
       )}
+      {article && full && <KbDelete id={article.id} />}
     </main>
   );
 }

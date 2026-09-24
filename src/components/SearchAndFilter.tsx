@@ -7,6 +7,7 @@ import type { Locale } from "@/lib/i18n";
 import { categoriesOf, filterTools } from "@/lib/search";
 import { CategoryChips } from "./CategoryChips";
 import { ToolGrid } from "./ToolGrid";
+import { sendUsage } from "./UsageBeacon";
 
 /**
  * Receives the full, server-rendered tool list and filters it in memory.
@@ -88,6 +89,19 @@ export function SearchAndFilter({ tools, locale }: { tools: Tool[]; locale: Loca
     return () => clearTimeout(t);
   }, [results.length, query, category, strings, categoryLabels]);
 
+  // Count searches that find nothing (a total per language -- the text of
+  // the search is never sent). Once per distinct query, after typing settles.
+  const reported = useRef(new Set<string>());
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    if (!q || results.length > 0 || reported.current.has(q)) return;
+    const t = setTimeout(() => {
+      reported.current.add(q);
+      sendUsage({ e: "empty", l: locale });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [query, results.length, locale]);
+
   const reset = useCallback(() => {
     setQuery("");
     setCategory(null);
@@ -102,8 +116,8 @@ export function SearchAndFilter({ tools, locale }: { tools: Tool[]; locale: Loca
             {strings.searchLabel}
           </label>
           <div
-            className="flex items-center gap-2.5 rounded-full border pl-4 pr-1.5"
-            style={{ height: 48, borderColor: "var(--control-border)", background: "var(--surface)" }}
+            className="flex items-center gap-2.5 border pl-4 pr-1.5"
+            style={{ height: 48, borderRadius: "calc(var(--radius) * 3)", borderWidth: "var(--bw)", borderColor: "var(--control-border)", background: "var(--surface)" }}
           >
             <svg
               aria-hidden="true"

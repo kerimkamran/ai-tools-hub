@@ -31,7 +31,7 @@ export default async function LoginPage({
       <main className={SHELL}>
         <h1 className="text-xl font-semibold tracking-tight">No access</h1>
         <p className="mt-2 text-sm" style={{ color: "var(--muted)" }}>
-          You are signed in, but this account cannot manage the catalog.
+          You are signed in, but this account does not have admin access.
         </p>
         <form action={logout} className="mt-6">
           <button
@@ -88,12 +88,17 @@ export default async function LoginPage({
             Password set. Sign in below.
           </p>
         )}
+        {error === "expired" && (
+          <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>
+            That sign-in attempt expired. Please start again.
+          </p>
+        )}
         {error === "locked" && (
           <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>
             Too many failed attempts. Try again in a few minutes.
           </p>
         )}
-        {error && error !== "locked" && (
+        {error && error !== "locked" && error !== "expired" && (
           <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>
             {/* Deliberately generic: distinguishing "no such user" from "wrong
                 password" hands an attacker an account-enumeration oracle. */}

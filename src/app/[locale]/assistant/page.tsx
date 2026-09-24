@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { Header } from "@/components/Header";
 import { getStrings } from "@/lib/strings";
 import { localePath, toLocale } from "@/lib/i18n";
-import { canUseAssistant, getSessionEmail, hasAuthConfig } from "@/lib/auth";
+import { getAssistantUserOrNull, hasAuthConfig } from "@/lib/auth";
 import { getAiSettings } from "@/lib/ai-settings";
+import { resolvePurpose } from "@/lib/connections";
 import { AssistantChat } from "./AssistantChat";
 import { assistantLogout } from "./actions";
 
@@ -25,13 +26,16 @@ export default async function AssistantPage({ params }: { params: Promise<{ loca
   const a = t.assistant;
 
   if (!hasAuthConfig()) redirect(localePath(locale, "/assistant/login"));
-  const email = await getSessionEmail();
-  if (!email || !(await canUseAssistant(email))) redirect(localePath(locale, "/assistant/login"));
+  const user = await getAssistantUserOrNull();
+  if (!user) redirect(localePath(locale, "/assistant/login"));
+  const email = user.email;
 
   let configured = false;
+  let storesText = false;
   try {
     const s = await getAiSettings();
-    configured = s.enabled && (s.envKey || (s.hasStoredKey && s.storedKeyReadable));
+    configured = s.enabled && (await resolvePurpose("assistant")).ok;
+    storesText = s.storeTranscripts;
   } catch {
     configured = false;
   }
@@ -55,6 +59,11 @@ export default async function AssistantPage({ params }: { params: Promise<{ loca
         </div>
         <p className="mt-1 truncate text-xs" style={{ color: "var(--faint)" }}>{email}</p>
 
+        {configured && storesText && (
+          <p role="note" className="mt-4 rounded-md border px-3 py-2 text-xs" style={{ borderColor: "var(--line)", color: "var(--muted)" }}>
+            {a.transcriptNotice}
+          </p>
+        )}
         {configured ? (
           <AssistantChat locale={locale} />
         ) : (

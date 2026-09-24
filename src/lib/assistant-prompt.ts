@@ -89,3 +89,28 @@ export function wrapQuestion(text: string, locale: Locale): string {
   const safe = text.replace(/<\/?\s*user_question\s*>/gi, (m) => m.replace(/</g, "‹").replace(/>/g, "›"));
   return `Interface locale: ${locale}\n<user_question>\n${safe}\n</user_question>`;
 }
+
+/**
+ * The system prompt as the model receives it: fixed instructions, then the
+ * catalog + knowledge base as one cached block. Shared by /api/assistant and
+ * the admin test console, so the console answers exactly like the assistant.
+ */
+export function assistantSystem(tools: Tool[], articles: KbArticle[]) {
+  return [
+    { type: "text" as const, text: INSTRUCTIONS },
+    { type: "text" as const, text: buildContext(tools, articles), cache_control: { type: "ephemeral" as const } },
+  ];
+}
+
+/** How full the assistant's context is (characters; ~4 per token). */
+export function contextMeter(tools: Tool[], articles: KbArticle[]) {
+  const raw = buildContext(tools, articles).length;
+  const chars = Math.min(raw, MAX_CONTEXT_CHARS);
+  return {
+    chars,
+    tokens: Math.round(chars / 4),
+    maxTokens: Math.round(MAX_CONTEXT_CHARS / 4),
+    percent: Math.min(100, Math.round((chars / MAX_CONTEXT_CHARS) * 100)),
+    truncated: raw > MAX_CONTEXT_CHARS,
+  };
+}

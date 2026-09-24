@@ -1,8 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { hasDatabaseConfig, queryOne } from "@/lib/db/client";
-import { isValidHex } from "@/lib/contrast";
-import type { BrandToken, ModeColors } from "@/lib/theme-validate";
+import { DEFAULT_LOOK, lookCss, sanitizeLook, type Look } from "@/lib/design";
 import { strings } from "@/lib/strings";
 import { pickLocalized, sanitizeI18n, type I18nMap, type Locale } from "@/lib/i18n";
 
@@ -28,7 +27,10 @@ export type SiteSettings = {
   /** AZ/RU taglines (Phase C). English is `tagline`. */
   taglineI18n: I18nMap<"tagline">;
   logoUrl: string | null;
-  colors: { light: ModeColors; dark: ModeColors };
+  /** The look in effect right now: an active scheduled look, else the published one. */
+  look: Look;
+  /** Name of the scheduled look in effect, if any. */
+  scheduled: string | null;
 };
 
 /** The tagline in `locale`, falling back to the English one. */
@@ -52,26 +54,8 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     ru: { tagline: "Всё, что мы создали, — в одном месте." },
   },
   logoUrl: null,
-  colors: {
-    light: {
-      primary: "#0f3c76",
-      navy: "#092649",
-      leaf: "#356d1b",
-      logoBlue: "#044176",
-      good: "#387047",
-      warning: "#96532b",
-      critical: "#b23b3b",
-    },
-    dark: {
-      primary: "#879eba",
-      navy: "#f0f0f0",
-      leaf: "#9ab68d",
-      logoBlue: "#82a0ba",
-      good: "#92b09a",
-      warning: "#c5a08a",
-      critical: "#d59393",
-    },
-  },
+  look: DEFAULT_LOOK,
+  scheduled: null,
 };
 
 type SettingsRow = {
@@ -82,11 +66,15 @@ type SettingsRow = {
   tagline: string;
   tagline_i18n?: unknown;
   logo_url: string | null;
-  colors: unknown;
+  look: unknown;
+  scheduled_look: unknown;
+  scheduled_name: string | null;
 };
 
 function rowToSettings(row: SettingsRow): SiteSettings {
-  const colors = row.colors as { light?: ModeColors; dark?: ModeColors } | null;
+  // A READ path with a public fallback: the look is re-validated here
+  // (sanitizeLook) rather than trusted because a write once passed the gate.
+  const published = sanitizeLook(row.look);
   return {
     brandName: row.brand_name,
     wordmarkPrimary: row.wordmark_primary,
@@ -95,15 +83,8 @@ function rowToSettings(row: SettingsRow): SiteSettings {
     tagline: row.tagline,
     taglineI18n: sanitizeI18n(row.tagline_i18n, ["tagline"] as const),
     logoUrl: row.logo_url,
-    // A malformed or partial colors blob (should not happen -- writes are
-    // gated by theme-validate.ts -- but this is a READ path with a public
-    // fallback, so it gets the same defence the SSRF validator applies:
-    // never trust a value just because a previous write validated it) falls
-    // back to the known-good defaults rather than rendering broken CSS.
-    colors: {
-      light: colors?.light ?? DEFAULT_SITE_SETTINGS.colors.light,
-      dark: colors?.dark ?? DEFAULT_SITE_SETTINGS.colors.dark,
-    },
+    look: row.scheduled_look ? sanitizeLook(row.scheduled_look, published) : published,
+    scheduled: row.scheduled_look ? row.scheduled_name : null,
   };
 }
 
@@ -111,14 +92,26 @@ function rowToSettings(row: SettingsRow): SiteSettings {
  * Wrapped in React's cache() so the root layout's generateMetadata() and its
  * page body, plus every public page's <Header>, share ONE query per render
  * pass instead of one each -- the same de-duplication getCatalogTools()
- * gets for free from fetch(), which the Supabase client does not do on its
- * own.
+ * would get for free from fetch(), which a database driver does not do on
+ * its own.
  */
 export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   if (!hasDatabaseConfig()) return DEFAULT_SITE_SETTINGS;
   try {
     const row = await queryOne<SettingsRow>(
-      "select brand_name,wordmark_primary,wordmark_secondary,attribution,tagline,tagline_i18n,logo_url,colors from site_settings where id = 1"
+      // The active schedule is decided HERE, at render time (engineering
+      // rule 4): with revalidate = 60 on every public route, a scheduled look
+      // starts and ends on every page within the minute.
+      `select s.brand_name, s.wordmark_primary, s.wordmark_secondary, s.attribution, s.tagline,
+              s.tagline_i18n, s.logo_url, s.look,
+              sch.look as scheduled_look, sch.name as scheduled_name
+         from site_settings s
+         left join lateral (
+           select look, name from theme_schedules
+            where now() >= starts_at and now() < ends_at
+            order by starts_at desc limit 1
+         ) sch on true
+        where s.id = 1`
     );
     if (!row) return DEFAULT_SITE_SETTINGS;
     return rowToSettings(row);
@@ -128,43 +121,12 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   }
 });
 
-/** token key -> the CSS custom property name it maps to in globals.css. */
-const TOKEN_CSS_VAR: Record<BrandToken, string> = {
-  primary: "--primary",
-  navy: "--navy",
-  leaf: "--leaf",
-  logoBlue: "--logo-blue",
-  good: "--good",
-  warning: "--warning",
-  critical: "--critical",
-};
-
-function declarations(colors: ModeColors, fallback: ModeColors): string {
-  return (Object.keys(TOKEN_CSS_VAR) as BrandToken[])
-    .map((token) => {
-      // Re-validated on READ, not just trusted because a write once passed
-      // theme-validate.ts -- the migration's own comment is explicit that
-      // the database does not re-check this shape, so a value that somehow
-      // reached the row any other way (a hand edit run directly against the
-      // database, say) cannot inject anything here: an invalid hex falls
-      // back to the shipped default for that one token instead of being
-      // written into a <style> tag verbatim.
-      const raw = colors[token];
-      const value = isValidHex(raw) ? raw : fallback[token];
-      return `${TOKEN_CSS_VAR[token]}:${value};`;
-    })
-    .join("");
-}
-
 /**
- * The <style> block the root layout injects. --gradient-accent and --focus
- * are deliberately NOT overridden here -- globals.css defines both with
- * var() references (`linear-gradient(90deg, var(--logo-blue), var(--leaf))`,
- * `var(--primary)`), so they recompute live from the tokens above with no
- * separate override needed.
+ * The <style> block the root layout injects: the look as CSS custom
+ * properties only (src/lib/design.ts lookCss). --gradient-accent and --focus
+ * keep recomputing from the tokens through their var() references in
+ * globals.css.
  */
 export function buildThemeStyle(settings: SiteSettings): string {
-  const light = declarations(settings.colors.light, DEFAULT_SITE_SETTINGS.colors.light);
-  const dark = declarations(settings.colors.dark, DEFAULT_SITE_SETTINGS.colors.dark);
-  return `:root{${light}}:root.dark{${dark}}`;
+  return lookCss(settings.look);
 }

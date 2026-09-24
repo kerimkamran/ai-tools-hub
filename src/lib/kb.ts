@@ -64,3 +64,21 @@ export async function getArticleForAdmin(id: number): Promise<KbArticle | null> 
   const row = await queryOne<Row>(`select ${COLUMNS} from kb_articles where id = $1`, [id]);
   return row ? toArticle(row) : null;
 }
+
+export type KbVersion = { id: number; savedAt: string; savedBy: string | null; title: string; body: string; status: string; chars: number };
+
+export async function getArticleVersions(id: number): Promise<KbVersion[]> {
+  const rows = await query<{ id: string; saved_at: Date; saved_by: string | null; title: string; body: string; status: string }>(
+    "select id::text, saved_at, saved_by, title, body, status from kb_article_versions where article_id = $1 order by saved_at desc, id desc",
+    [id]
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    savedAt: new Date(r.saved_at).toISOString(),
+    savedBy: r.saved_by,
+    title: r.title,
+    body: r.body,
+    status: r.status,
+    chars: r.title.length + r.body.length,
+  }));
+}

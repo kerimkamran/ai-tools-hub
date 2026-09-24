@@ -1,6 +1,5 @@
--- Seed the catalog. Safe to re-run. Requires migrations through 0004 (i18n). Unchanged from the Supabase version
--- except the `public.` schema prefix (plain Postgres has no separate
--- `public`/`storage`/`auth` schema split to disambiguate).
+-- Seed the catalog. Safe to re-run. Requires migrations through 0004 (i18n).
+-- Plain Postgres (Render).
 --
 -- Note the wording: these descriptions are PUBLIC writing. The hub is indexed,
 -- so no internal codenames, client names or department detail belongs here.
