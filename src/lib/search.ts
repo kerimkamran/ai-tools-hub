@@ -32,10 +32,11 @@ export function normalize(s: string): string {
     .trim();
 }
 
-/** One pre-normalised haystack per tool: name + tagline + category + tags. */
+/** One pre-normalised haystack per tool: name + tagline + category (both the
+ *  English key and the localized label) + tags. */
 export function haystack(tool: Tool): string {
   return normalize(
-    [tool.name, tool.tagline, tool.category, ...tool.tags].join(" ")
+    [tool.name, tool.tagline, tool.category, tool.categoryLabel ?? "", ...tool.tags].join(" ")
   );
 }
 

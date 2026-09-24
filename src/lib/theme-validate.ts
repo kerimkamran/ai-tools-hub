@@ -80,6 +80,9 @@ export const themeInputSchema = z.object({
   wordmarkSecondary: z.string().trim().min(1).max(20),
   attribution: z.string().trim().max(60).default(""),
   tagline: z.string().trim().min(1).max(120),
+  // Optional per-locale taglines (Phase C). Blank = fall back to English.
+  taglineAz: z.string().trim().max(120).default(""),
+  taglineRu: z.string().trim().max(120).default(""),
   light: modeColors,
   dark: modeColors,
 });

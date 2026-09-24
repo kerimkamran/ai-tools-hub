@@ -1,14 +1,16 @@
 import Link from "next/link";
-import { displayHost, ACCESS_LABEL, type Tool } from "@/lib/types";
-import { strings } from "@/lib/strings";
+import { displayHost, type Tool } from "@/lib/types";
+import { getStrings } from "@/lib/strings";
+import { localePath, type Locale } from "@/lib/i18n";
 import { AccessBadge, PlannedBadge } from "./AccessBadge";
 import { HealthDot } from "./HealthDot";
 
 const CARD_BASE =
   "group relative flex h-full flex-col gap-3 rounded-lg border p-4 transition-[border-color,box-shadow] duration-150";
 
-function Body({ tool, planned }: { tool: Tool; planned: boolean }) {
+function Body({ tool, planned, locale }: { tool: Tool; planned: boolean; locale: Locale }) {
   const host = displayHost(tool.url);
+  const strings = getStrings(locale);
 
   return (
     <>
@@ -41,12 +43,12 @@ function Body({ tool, planned }: { tool: Tool; planned: boolean }) {
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs" style={{ color: "var(--faint)" }}>
-          {tool.category}
+          {tool.categoryLabel ?? tool.category}
         </span>
         <span aria-hidden="true" style={{ color: "var(--line-strong)" }}>
           ·
         </span>
-        {planned ? <PlannedBadge label={strings.comingSoon} /> : <AccessBadge access={tool.access} />}
+        {planned ? <PlannedBadge label={strings.comingSoon} /> : <AccessBadge access={tool.access} locale={locale} />}
       </div>
 
       {tool.accessNote && (
@@ -61,13 +63,14 @@ function Body({ tool, planned }: { tool: Tool; planned: boolean }) {
         <span className="truncate text-[11px]" style={{ color: "var(--faint)" }}>
           {planned ? "" : host}
         </span>
-        {!planned && tool.healthUrl && <HealthDot toolId={tool.id} />}
+        {!planned && tool.healthUrl && <HealthDot toolId={tool.id} locale={locale} />}
       </div>
     </>
   );
 }
 
-export function ToolCard({ tool }: { tool: Tool }) {
+export function ToolCard({ tool, locale }: { tool: Tool; locale: Locale }) {
+  const strings = getStrings(locale);
   const planned = tool.status === "planned" || !tool.url;
 
   if (planned) {
@@ -86,7 +89,7 @@ export function ToolCard({ tool }: { tool: Tool }) {
         className={CARD_BASE}
         style={{ borderColor: "var(--line)", background: "var(--surface-sunken)" }}
       >
-        <Body tool={tool} planned />
+        <Body tool={tool} planned locale={locale} />
       </div>
     );
   }
@@ -101,9 +104,9 @@ export function ToolCard({ tool }: { tool: Tool }) {
   const label = [
     strings.openTool(tool.name),
     tool.tagline,
-    ACCESS_LABEL[tool.access],
+    strings.access[tool.access],
     tool.accessNote,
-    `on ${displayHost(tool.url)}`,
+    strings.onHost(displayHost(tool.url)),
     `(${strings.opensInNewTab})`,
   ]
     .filter(Boolean)
@@ -125,7 +128,7 @@ export function ToolCard({ tool }: { tool: Tool }) {
       style={{ borderColor: "var(--line)", background: "var(--surface)" }}
       data-tool-card
     >
-      <Body tool={tool} planned={false} />
+      <Body tool={tool} planned={false} locale={locale} />
     </a>
   );
 }
@@ -136,15 +139,16 @@ export function ToolCard({ tool }: { tool: Tool }) {
  * the canonical URL crawlers see. It sits OUTSIDE the card anchor because a
  * link inside a link is invalid HTML and breaks keyboard navigation.
  */
-export function ToolDetailsLink({ tool }: { tool: Tool }) {
+export function ToolDetailsLink({ tool, locale }: { tool: Tool; locale: Locale }) {
+  const strings = getStrings(locale);
   return (
     <Link
-      href={`/tools/${tool.slug}`}
+      href={localePath(locale, `/tools/${tool.slug}`)}
       className="text-xs underline underline-offset-2 hover:opacity-70"
       style={{ color: "var(--muted)" }}
     >
       {strings.details}
-      <span className="sr-only"> about {tool.name}</span>
+      <span className="sr-only">{strings.detailsAbout(tool.name)}</span>
     </Link>
   );
 }

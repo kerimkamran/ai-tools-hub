@@ -7,8 +7,8 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        // The admin surface and the probe endpoint are not content.
-        disallow: ["/admin", "/admin/", "/api/"],
+        // The admin surface, the staff assistant and the API are not content.
+        disallow: ["/admin", "/admin/", "/api/", "/en/assistant", "/az/assistant", "/ru/assistant"],
       },
     ],
     sitemap: `${siteUrl()}/sitemap.xml`,

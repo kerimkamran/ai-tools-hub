@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { ToolHealth } from "@/lib/types";
-import { strings } from "@/lib/strings";
+import { getStrings } from "@/lib/strings";
+import type { Locale } from "@/lib/i18n";
 
 type HealthMap = Record<string, ToolHealth>;
 
@@ -32,7 +33,8 @@ function loadHealth(): Promise<HealthMap> {
  * never shift layout. `unknown` renders nothing at all -- absence of a signal
  * is not a negative signal.
  */
-export function HealthDot({ toolId }: { toolId: string }) {
+export function HealthDot({ toolId, locale }: { toolId: string; locale: Locale }) {
+  const strings = getStrings(locale);
   const [state, setState] = useState<ToolHealth>("unknown");
 
   useEffect(() => {

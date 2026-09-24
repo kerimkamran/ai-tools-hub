@@ -1,10 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { removeAdmin, type RemoveState } from "./actions";
+import { removeAdmin, removeStaff, type RemoveState } from "./actions";
 
-export function RemoveButton({ email }: { email: string }) {
-  const [state, action, pending] = useActionState<RemoveState, FormData>(removeAdmin, {});
+export function RemoveButton({ email, kind = "admin" }: { email: string; kind?: "admin" | "staff" }) {
+  const [state, action, pending] = useActionState<RemoveState, FormData>(
+    kind === "staff" ? removeStaff : removeAdmin,
+    {}
+  );
 
   return (
     <form action={action} className="flex flex-col items-end">

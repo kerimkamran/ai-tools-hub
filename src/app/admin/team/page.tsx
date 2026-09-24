@@ -13,12 +13,19 @@ async function listInvitedAdmins(): Promise<AdminRow[]> {
   );
 }
 
+async function listStaff(): Promise<AdminRow[]> {
+  return query<AdminRow>(
+    "select email, invited_by, created_at from staff_users order by created_at asc"
+  );
+}
+
 export default async function TeamPage() {
   await requireSuperAdmin();
 
-  const [superAdmins, invited] = await Promise.all([
+  const [superAdmins, invited, staff] = await Promise.all([
     Promise.resolve(listSuperAdminEmails()),
     listInvitedAdmins(),
+    listStaff(),
   ]);
 
   return (
@@ -62,6 +69,41 @@ export default async function TeamPage() {
         {invited.length === 0 && (
           <p className="mt-3 text-sm" style={{ color: "var(--muted)" }}>
             No invited admins yet.
+          </p>
+        )}
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-sm font-semibold uppercase tracking-wide" style={{ color: "var(--faint)" }}>
+          Assistant access (staff)
+        </h2>
+        <p className="mt-1 text-xs" style={{ color: "var(--faint)" }}>
+          Staff can use the AI assistant and nothing else. @azerconnect.az addresses
+          only. Admins already have assistant access and do not need to be added here.
+        </p>
+        <div className="mt-3">
+          <InviteForm kind="staff" />
+        </div>
+        <ul className="mt-4 list-none space-y-2 p-0">
+          {staff.map((a) => (
+            <li
+              key={a.email}
+              className="flex items-center justify-between gap-4 rounded-lg border p-3"
+              style={{ borderColor: "var(--line)" }}
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{a.email}</p>
+                <p className="truncate text-xs" style={{ color: "var(--faint)" }}>
+                  added by {a.invited_by} · {new Date(a.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <RemoveButton email={a.email} kind="staff" />
+            </li>
+          ))}
+        </ul>
+        {staff.length === 0 && (
+          <p className="mt-3 text-sm" style={{ color: "var(--muted)" }}>
+            No staff added yet.
           </p>
         )}
       </section>

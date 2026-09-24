@@ -54,7 +54,7 @@ export default async function InviteAcceptPage({
     <main className={SHELL}>
       <h1 className="text-xl font-semibold tracking-tight">Set your password</h1>
       <p className="mt-1 text-sm" style={{ color: "var(--muted)" }}>
-        You&apos;ve been invited to manage the catalog. Choose a password to finish.
+        You&apos;ve been invited to One.Simple. Choose a password to finish.
       </p>
       <AcceptInviteForm token={token} email={row.email} />
     </main>

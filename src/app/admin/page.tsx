@@ -1,10 +1,27 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/auth";
 import { getAllToolsForAdmin } from "@/lib/registry";
-import { STATUS_LABEL } from "@/lib/types";
+import { STATUS_LABEL, TOOL_I18N_KEYS, type Tool } from "@/lib/types";
+import { missingTranslations } from "@/lib/i18n";
 import { DeleteButton } from "./DeleteButton";
 
 export const dynamic = "force-dynamic";
+
+/** Locales where any translatable field that HAS an English value is still
+ *  untranslated -- so gaps are visible here rather than silently falling
+ *  back to English on the public site. */
+function missingFor(t: Tool) {
+  const base: Record<(typeof TOOL_I18N_KEYS)[number], string> = {
+    name: t.name,
+    tagline: t.tagline,
+    description: t.description,
+    accessNote: t.accessNote ?? "",
+  };
+  // Product names are usually not translated, so a missing name alone does
+  // not flag a tool.
+  const keys = TOOL_I18N_KEYS.filter((k) => k !== "name");
+  return missingTranslations(t.i18n, [...keys], (k) => base[k].trim().length > 0);
+}
 
 export default async function AdminPage() {
   await requireAdmin();
@@ -42,6 +59,11 @@ export default async function AdminPage() {
                 <p className="truncate text-xs" style={{ color: "var(--faint)" }}>
                   {t.id} · /{t.slug} · {t.category} · {STATUS_LABEL[t.status]} · #{t.sortOrder}
                 </p>
+                {missingFor(t).length > 0 && (
+                  <p className="text-xs" style={{ color: "var(--warning)" }}>
+                    Missing translation: {missingFor(t).map((l) => l.toUpperCase()).join(", ")}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">

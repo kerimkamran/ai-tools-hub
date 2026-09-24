@@ -1,7 +1,8 @@
 import "server-only";
 import { hasDatabaseConfig, query, queryOne } from "@/lib/db/client";
-import { fallbackTools } from "@/lib/config/fallback-tools";
-import { rowToTool, type Tool, type ToolRow } from "@/lib/types";
+import { fallbackCategoryLabels, fallbackTools } from "@/lib/config/fallback-tools";
+import { rowToTool, type CategoryLabels, type Tool, type ToolRow } from "@/lib/types";
+import { sanitizeI18n } from "@/lib/i18n";
 
 /**
  * THE SEAM.
@@ -20,7 +21,7 @@ import { rowToTool, type Tool, type ToolRow } from "@/lib/types";
  */
 
 const COLUMNS =
-  "id,slug,name,tagline,description,category,tags,icon,url,health_url,access,access_note,status,sort_order,created_at,updated_at";
+  "id,slug,name,tagline,description,category,tags,icon,url,health_url,access,access_note,status,sort_order,created_at,updated_at,i18n";
 
 function sortTools(tools: Tool[]): Tool[] {
   return [...tools].sort(
@@ -102,4 +103,54 @@ export async function getToolByIdForAdmin(id: string): Promise<Tool | null> {
 export async function toolIdExists(id: string): Promise<boolean> {
   const row = await queryOne<{ id: string }>("select id from tools where id = $1", [id]);
   return Boolean(row);
+}
+
+type CategoryRow = { name: string; i18n: unknown };
+
+function rowsToCategoryLabels(rows: CategoryRow[]): CategoryLabels {
+  const out: CategoryLabels = {};
+  for (const r of rows) {
+    const map = sanitizeI18n(r.i18n, ["label"] as const);
+    out[r.name] = { az: map.az?.label, ru: map.ru?.label };
+  }
+  return out;
+}
+
+/**
+ * Category label translations for the public catalog. Same fallback
+ * discipline as getCatalogTools(): the static snapshot only when the
+ * database is unconfigured or the query fails. A missing label simply
+ * renders the English category name.
+ */
+export async function getCategoryLabels(): Promise<CategoryLabels> {
+  if (!hasDatabaseConfig()) return fallbackCategoryLabels;
+  try {
+    return rowsToCategoryLabels(await query<CategoryRow>("select name, i18n from categories"));
+  } catch (err) {
+    console.error("[registry] categories query failed, using static fallback:", err);
+    return fallbackCategoryLabels;
+  }
+}
+
+/** Admin: every category actually used by a tool, plus any stored label rows. */
+export async function getCategoriesForAdmin(): Promise<
+  Array<{ name: string; az: string; ru: string; toolCount: number }>
+> {
+  const [used, stored] = await Promise.all([
+    query<{ category: string; n: string }>(
+      "select category, count(*)::text as n from tools group by category"
+    ),
+    query<CategoryRow>("select name, i18n from categories"),
+  ]);
+  const labels = rowsToCategoryLabels(stored);
+  const names = new Set([...used.map((u) => u.category), ...stored.map((s) => s.name)]);
+  const counts = new Map(used.map((u) => [u.category, Number(u.n)]));
+  return [...names]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({
+      name,
+      az: labels[name]?.az ?? "",
+      ru: labels[name]?.ru ?? "",
+      toolCount: counts.get(name) ?? 0,
+    }));
 }

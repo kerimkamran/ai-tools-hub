@@ -127,6 +127,35 @@ export const toolInputSchema = z.object({
 
 export type ToolInput = z.infer<typeof toolInputSchema>;
 
+/**
+ * AZ/RU translations of a tool (Phase C). Every field optional -- blank means
+ * "fall back to English", never "render blank". Same length caps as the
+ * English base columns so a translation cannot break the card layout that
+ * the English value was sized for.
+ */
+const optionalText = (max: number) => z.string().trim().max(max).default("");
+const toolTranslationSchema = z.object({
+  name: optionalText(60),
+  tagline: optionalText(80),
+  description: optionalText(2000),
+  accessNote: optionalText(120),
+});
+export const toolI18nSchema = z.object({
+  az: toolTranslationSchema,
+  ru: toolTranslationSchema,
+});
+export type ToolI18nInput = z.infer<typeof toolI18nSchema>;
+
+/** Drops blank fields and empty locales before the value is stored. */
+export function compactI18n(input: ToolI18nInput): Record<string, Record<string, string>> {
+  const out: Record<string, Record<string, string>> = {};
+  for (const [loc, fields] of Object.entries(input)) {
+    const kept = Object.fromEntries(Object.entries(fields).filter(([, v]) => v.length > 0));
+    if (Object.keys(kept).length) out[loc] = kept;
+  }
+  return out;
+}
+
 /** Parses the comma-separated tags field from the admin form. */
 export function parseTags(raw: FormDataEntryValue | null): string[] {
   if (typeof raw !== "string") return [];

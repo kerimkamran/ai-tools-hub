@@ -1,10 +1,14 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { inviteAdmin, type InviteState } from "./actions";
+import { inviteAdmin, inviteStaff, type InviteState } from "./actions";
 
-export function InviteForm() {
-  const [state, action, pending] = useActionState<InviteState, FormData>(inviteAdmin, {});
+export function InviteForm({ kind = "admin" }: { kind?: "admin" | "staff" }) {
+  const [state, action, pending] = useActionState<InviteState, FormData>(
+    kind === "staff" ? inviteStaff : inviteAdmin,
+    {}
+  );
+  const inputId = `invite-email-${kind}`;
   const [copied, setCopied] = useState(false);
 
   async function copyLink() {
@@ -23,15 +27,15 @@ export function InviteForm() {
     <div>
       <form action={action} className="flex flex-col gap-2 sm:flex-row sm:items-start">
         <div className="flex-1">
-          <label htmlFor="invite-email" className="sr-only">
+          <label htmlFor={inputId} className="sr-only">
             Email to invite
           </label>
           <input
-            id="invite-email"
+            id={inputId}
             name="email"
             type="email"
             required
-            placeholder="name@company.com"
+            placeholder={kind === "staff" ? "name@azerconnect.az" : "name@company.com"}
             className="w-full rounded-md border px-3 py-2 text-sm outline-none"
             style={{ borderColor: "var(--control-border)", background: "var(--surface)" }}
           />
@@ -50,6 +54,12 @@ export function InviteForm() {
           {pending ? "Creating…" : "Invite"}
         </button>
       </form>
+
+      {state.ok && !state.inviteUrl && (
+        <p role="status" className="mt-3 text-sm" style={{ color: "var(--good)" }}>
+          Access granted. They already have a password, so no link is needed.
+        </p>
+      )}
 
       {state.ok && state.inviteUrl && (
         <div

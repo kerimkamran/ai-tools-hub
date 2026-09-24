@@ -1,4 +1,4 @@
-import type { Tool } from "@/lib/types";
+import type { CategoryLabels, Tool } from "@/lib/types";
 
 /**
  * Static snapshot of the catalog.
@@ -32,6 +32,20 @@ export const fallbackTools: Tool[] = [
     sortOrder: 10,
     createdAt: now,
     updatedAt: now,
+    i18n: {
+      az: {
+        tagline: "Kompetensiya əsaslı qiymətləndirmə: Sİ bal verir, insan təsdiqləyir.",
+        description:
+          "Vantage strukturlaşdırılmış, kompetensiyalara uyğunlaşdırılmış qiymətləndirmələr aparır. Hər cavab yazılı əsaslandırma ilə qiymətləndirilir və bal nəzərə alınmazdan əvvəl rəyçi onu təsdiqləyir.",
+        accessNote: "Giriş dəvətlə",
+      },
+      ru: {
+        tagline: "Оценка по компетенциям: баллы ставит ИИ, подтверждает человек.",
+        description:
+          "Vantage проводит структурированные оценки, привязанные к компетенциям. Каждый ответ оценивается с письменным обоснованием, и рецензент подтверждает каждый балл, прежде чем он будет засчитан.",
+        accessNote: "Доступ по приглашению",
+      },
+    },
   },
   {
     id: "sparklab",
@@ -51,6 +65,20 @@ export const fallbackTools: Tool[] = [
     sortOrder: 20,
     createdAt: now,
     updatedAt: now,
+    i18n: {
+      az: {
+        tagline: "İdeyaları toplayın, qiymətləndirin və yaxşılarını irəli aparın.",
+        description:
+          "SparkLab innovasiya axınıdır: ideyanızı təqdim edin, süni intellektin köməyi ilə rəy və qiymət alın, onu qiymətləndirmə və mentorluq mərhələləri boyunca izləyin.",
+        accessNote: "Yalnız @azerconnect.az hesabları",
+      },
+      ru: {
+        tagline: "Собирайте идеи, оценивайте их и продвигайте лучшие.",
+        description:
+          "SparkLab — это конвейер инноваций: подайте идею, получите отзыв и оценку с помощью ИИ и отслеживайте её на этапах экспертизы и менторства.",
+        accessNote: "Только для учётных записей @azerconnect.az",
+      },
+    },
   },
   {
     id: "cv-screener",
@@ -70,5 +98,23 @@ export const fallbackTools: Tool[] = [
     sortOrder: 30,
     createdAt: now,
     updatedAt: now,
+    i18n: {
+      az: {
+        tagline: "Müraciətləri vəzifə tələbləri ilə tutuşdurun — sübutlar göstərilməklə.",
+        description:
+          "Müraciəti vakansiyanın tələbləri ilə müqayisə edir və hansı tələblərin ödənildiyini, qismən ödənildiyini və ya tapılmadığını göstərir — hər qərar üçün dəstəkləyici mətn sitat gətirilir.",
+      },
+      ru: {
+        tagline: "Сопоставляет отклики с требованиями роли и показывает доказательства.",
+        description:
+          "Сверяет отклик с требованиями вакансии и показывает, какие из них выполнены, выполнены частично или не найдены, — с цитатой подтверждающего текста для каждого вывода.",
+      },
+    },
   },
 ];
+
+/** Category label snapshot, same role as fallbackTools above. */
+export const fallbackCategoryLabels: CategoryLabels = {
+  HR: { az: "İnsan resursları", ru: "HR" },
+  Productivity: { az: "Məhsuldarlıq", ru: "Продуктивность" },
+};

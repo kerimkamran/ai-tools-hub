@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Tool } from "@/lib/types";
-import { strings } from "@/lib/strings";
+import { getStrings } from "@/lib/strings";
+import type { Locale } from "@/lib/i18n";
 import { categoriesOf, filterTools } from "@/lib/search";
 import { CategoryChips } from "./CategoryChips";
 import { ToolGrid } from "./ToolGrid";
@@ -15,13 +16,18 @@ import { ToolGrid } from "./ToolGrid";
  * synchronous; only the screen-reader announcement is debounced, so assistive
  * tech is not flooded with one message per character.
  */
-export function SearchAndFilter({ tools }: { tools: Tool[] }) {
+export function SearchAndFilter({ tools, locale }: { tools: Tool[]; locale: Locale }) {
+  const strings = getStrings(locale);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<string | null>(null);
   const [announced, setAnnounced] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   const categories = useMemo(() => categoriesOf(tools), [tools]);
+  const categoryLabels = useMemo(
+    () => Object.fromEntries(tools.map((t) => [t.category, t.categoryLabel ?? t.category])),
+    [tools]
+  );
   const results = useMemo(
     () => filterTools(tools, query, category),
     [tools, query, category]
@@ -76,11 +82,11 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
    */
   useEffect(() => {
     const parts = [strings.resultCount(results.length)];
-    if (query) parts.push(`for "${query}"`);
-    if (category) parts.push(`in ${category}`);
+    if (query) parts.push(strings.announceQuery(query));
+    if (category) parts.push(strings.announceCategory(categoryLabels[category] ?? category));
     const t = setTimeout(() => setAnnounced(parts.join(" ")), 150);
     return () => clearTimeout(t);
-  }, [results.length, query, category]);
+  }, [results.length, query, category, strings, categoryLabels]);
 
   const reset = useCallback(() => {
     setQuery("");
@@ -141,7 +147,13 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
         </div>
 
         <div className="mt-5">
-          <CategoryChips categories={categories} active={category} onChange={setCategory} />
+          <CategoryChips
+            categories={categories}
+            labels={categoryLabels}
+            active={category}
+            onChange={setCategory}
+            locale={locale}
+          />
         </div>
       </search>
 
@@ -151,7 +163,7 @@ export function SearchAndFilter({ tools }: { tools: Tool[] }) {
 
       <div className="mt-8">
         {results.length > 0 ? (
-          <ToolGrid tools={results} />
+          <ToolGrid tools={results} locale={locale} />
         ) : (
           <div className="py-12 text-center">
             <p className="text-sm" style={{ color: "var(--muted)" }}>

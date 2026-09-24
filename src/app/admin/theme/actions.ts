@@ -50,6 +50,8 @@ function formToInput(formData: FormData) {
     wordmarkSecondary: String(formData.get("wordmarkSecondary") ?? "").trim(),
     attribution: String(formData.get("attribution") ?? "").trim(),
     tagline: String(formData.get("tagline") ?? "").trim(),
+    taglineAz: String(formData.get("tagline_az") ?? "").trim(),
+    taglineRu: String(formData.get("tagline_ru") ?? "").trim(),
     light: mode("light"),
     dark: mode("dark"),
   };
@@ -119,8 +121,8 @@ export async function saveTheme(
   try {
     await query(
       `insert into site_settings
-         (id, brand_name, wordmark_primary, wordmark_secondary, attribution, tagline, colors, updated_by, logo_url)
-       values (1, $1, $2, $3, $4, $5, $6, $7, coalesce($8, (select logo_url from site_settings where id = 1)))
+         (id, brand_name, wordmark_primary, wordmark_secondary, attribution, tagline, colors, updated_by, logo_url, tagline_i18n)
+       values (1, $1, $2, $3, $4, $5, $6, $7, coalesce($8, (select logo_url from site_settings where id = 1)), $9)
        on conflict (id) do update set
          brand_name = excluded.brand_name,
          wordmark_primary = excluded.wordmark_primary,
@@ -129,7 +131,8 @@ export async function saveTheme(
          tagline = excluded.tagline,
          colors = excluded.colors,
          updated_by = excluded.updated_by,
-         logo_url = excluded.logo_url`,
+         logo_url = excluded.logo_url,
+         tagline_i18n = excluded.tagline_i18n`,
       [
         input.brandName,
         input.wordmarkPrimary,
@@ -139,6 +142,10 @@ export async function saveTheme(
         JSON.stringify(toColorsColumn(input)),
         superAdmin.email,
         logoDataUrl ?? null,
+        JSON.stringify({
+          ...(input.taglineAz ? { az: { tagline: input.taglineAz } } : {}),
+          ...(input.taglineRu ? { ru: { tagline: input.taglineRu } } : {}),
+        }),
       ]
     );
   } catch (err) {

@@ -1,4 +1,6 @@
-import { ACCESS_LABEL, type ToolAccess } from "@/lib/types";
+import type { ToolAccess } from "@/lib/types";
+import { getStrings } from "@/lib/strings";
+import type { Locale } from "@/lib/i18n";
 
 /**
   * Tells the visitor what they will meet BEFORE they click.
@@ -11,7 +13,7 @@ import { ACCESS_LABEL, type ToolAccess } from "@/lib/types";
  * cannot get in at all, and discovering that after a page load, a cold start
  * and a failed signup is the worst outcome this product can produce.
  */
-export function AccessBadge({ access }: { access: ToolAccess }) {
+export function AccessBadge({ access, locale }: { access: ToolAccess; locale: Locale }) {
   const open = access === "open";
   return (
     <span
@@ -21,7 +23,7 @@ export function AccessBadge({ access }: { access: ToolAccess }) {
         color: open ? "var(--good)" : "var(--muted)",
       }}
     >
-      {ACCESS_LABEL[access]}
+      {getStrings(locale).access[access]}
     </span>
   );
 }

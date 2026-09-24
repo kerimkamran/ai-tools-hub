@@ -3,7 +3,9 @@ import { getAdminContext } from "@/lib/auth";
 import { logout } from "./login/actions";
 
 /**
- * Shared chrome for the three admin sections (Catalog, Theme, Team).
+ * Shared chrome for the admin sections. Catalog, Categories and Knowledge
+ * base are for every admin; Assistant (AI settings), Theme and Team are
+ * super-admin only.
  * Presentational only -- rendering here is NOT the security boundary. Theme
  * and Team links are hidden from an ordinary admin, but each of those pages
  * calls requireSuperAdmin() itself regardless, exactly like every other
@@ -28,8 +30,17 @@ export async function AdminNav() {
           <Link href="/admin" className="rounded px-2 py-1 hover:opacity-70">
             Catalog
           </Link>
+          <Link href="/admin/categories" className="rounded px-2 py-1 hover:opacity-70">
+            Categories
+          </Link>
+          <Link href="/admin/kb" className="rounded px-2 py-1 hover:opacity-70">
+            Knowledge base
+          </Link>
           {ctx.isSuperAdmin && (
             <>
+              <Link href="/admin/assistant" className="rounded px-2 py-1 hover:opacity-70">
+                Assistant
+              </Link>
               <Link href="/admin/theme" className="rounded px-2 py-1 hover:opacity-70">
                 Theme
               </Link>
@@ -40,10 +51,11 @@ export async function AdminNav() {
           )}
         </div>
         <div className="flex items-center gap-3 text-xs" style={{ color: "var(--faint)" }}>
-          <span className="truncate">
+          <Link href="/admin/account" className="truncate underline-offset-4 hover:underline">
             {ctx.user.email}
             {ctx.isSuperAdmin ? " · Super admin" : ""}
-          </span>
+          </Link>
+          <Link href="/en" className="underline-offset-4 hover:underline">View site</Link>
           <form action={logout}>
             <button
               type="submit"

@@ -1,7 +1,9 @@
 # AI Tools Hub
 
 One public page that lists independently built AI tools, with search, category
-filters and cards that open the real applications.
+filters and cards that open the real applications — in English, Azerbaijani
+and Russian (`/en`, `/az`, `/ru`) — plus a staff-only AI assistant that
+answers questions about those tools.
 
 The hub is a **directory, not a platform**. Each tool is its own application on
 its own host. Nothing is proxied, framed, or served through the hub, and no
@@ -27,17 +29,19 @@ tool to a custom subdomain later is one edit in the admin UI — no code change.
 ## Architecture
 
 ```
-Public visitor ──► AI Tools Hub (Next.js, Vercel)
+Public visitor ──► AI Tools Hub (Next.js, Render web service)
   (no account)      static / ISR · no cookies · no middleware on public routes
                          │
-        ┌────────────────┼──────────────────┐
-        │                │                  │
-    /  catalog      /api/health         /admin  (gated)
-    /tools/[slug]   cached 30 min       proxy scoped HERE only
-        └────────────────┴──────────────────┘
+        ┌────────────────┼──────────────────┬───────────────────────┐
+        │                │                  │                       │
+  /{en,az,ru}       /api/health         /admin  (gated)     /{locale}/assistant
+  /{locale}/about   cached 30 min       proxy scoped        staff only, dynamic
+  /{locale}/tools/*                     HERE only           ──► /api/assistant ──► Claude
+        └────────────────┴──────────────────┴───────────────────────┘
                          ▼
-              Supabase Postgres (tools + RLS)
-              anon key = read · service role = write, SERVER ONLY
+              Plain Postgres (Render managed database)
+              reached only from server code — never from the browser,
+              no public REST endpoint, no RLS needed
 
     ── plain links ──►  Vantage · SparkLab · (CV Screener, planned)
 ```
@@ -47,17 +51,23 @@ Public visitor ──► AI Tools Hub (Next.js, Vercel)
 These are load-bearing. Breaking one is a defect, not a preference.
 
 1. **The public catalog is statically rendered and never touches a cookie.**
-   Reading cookies or `searchParams` in `src/app/page.tsx` would opt the route
-   into dynamic rendering and destroy edge-cacheable delivery. The `?q=` deep
-   link is therefore read on the client.
+   Reading cookies or `searchParams` in `src/app/[locale]/page.tsx` would opt
+   the route into dynamic rendering and destroy edge-cacheable delivery. The
+   `?q=` deep link is therefore read on the client. The same holds for the
+   locale: it comes from the URL, never from a cookie or `Accept-Language`.
+   After any change, check the build output: `/[locale]`, `/[locale]/about`
+   and `/[locale]/tools/[slug]` must stay `●` (SSG).
 2. **`src/proxy.ts` matches `/admin` and nothing else.** Widening it puts a
-   Supabase session round-trip in front of the catalog.
-3. **The service-role key is unreachable from client code.**
-   `src/lib/supabase/admin.ts` imports `server-only`, so a client import is a
-   *build error*. Verified — the build exits 1.
+   database round-trip and a session-cookie check in front of the catalog.
+3. **The database is unreachable from client code.** `src/lib/db/client.ts`
+   imports `server-only` (via files that only ever run on the server), so a
+   client import that tried to run a query would fail at build/runtime, not
+   silently leak a connection string to the browser. `DATABASE_URL` is never
+   exposed via `NEXT_PUBLIC_*`.
 4. **The proxy is not the auth boundary.** Every admin page and Server Action
-   calls `requireAdmin()` / `getAdminOrNull()` itself, using `getUser()` (which
-   verifies the JWT) rather than `getSession()`.
+   calls `requireAdmin()` / `getAdminOrNull()` itself, which verifies the
+   session cookie's signature and expiry via `verifySessionToken()`
+   (`src/lib/session.ts`) rather than trusting that the proxy already checked.
 5. **`/api/health` only ever fetches `healthUrl` values already in the
    registry**, re-validated, https-only, private/loopback/IP hosts refused,
    `redirect: "manual"`, body never read.
@@ -67,11 +77,12 @@ These are load-bearing. Breaking one is a defect, not a preference.
    are in the server-rendered HTML.
 8. **Adding a tool requires no code change**, only a registry row.
 9. **`/admin` requires authorization, not just authentication.** A valid
-   Supabase session is not sufficient; the email must be in
+   session cookie is not sufficient; the email must be in
    `SUPER_ADMIN_EMAILS` **or** an active row in `admin_users` (Phase B).
-10. **`unlisted` must not be enumerable.** The anon key is public and speaks
-    PostgREST, so RLS admits only `published` and `planned`; unlisted rows
-    resolve server-side by exact slug.
+10. **`unlisted` must not be enumerable.** There is no public database
+    endpoint at all — the browser never talks to Postgres directly — but the
+    public catalog query still filters to `published`/`planned` explicitly in
+    SQL; unlisted rows resolve only server-side, by exact slug.
 11. **Super-admin status is never read from a database row.** `admin_users`
     holds only ordinary, invited admins. A super admin who compromised the
     database could not use that access to promote themselves or anyone
@@ -80,45 +91,77 @@ These are load-bearing. Breaking one is a defect, not a preference.
 12. **The theme editor cannot save a palette that fails WCAG contrast**, and
     accepts only a fixed token allowlist with strict 6-digit hex — never
     free-form CSS. See `src/lib/theme-validate.ts`.
+13. **An untranslated field renders in English, never blank.** Translations
+    live in JSONB beside the English base columns; the fallback is
+    requested locale → English. See `src/lib/i18n.ts` and its test.
+14. **The AI provider key never reaches a browser.** The browser only talks
+    to `/api/assistant`; the key is decrypted per request in server code,
+    never returned, logged or put in an error message. CSP `connect-src`
+    stays `'self'`.
+15. **The assistant stops itself.** Session → access → input caps →
+    enabled → monthly budget → per-user hourly limit, in that order, before
+    any model call. No question or answer text is stored.
+16. **Staff are @azerconnect.az only**, enforced in the invite action AND by
+    a CHECK constraint on `staff_users`.
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env.local   # then fill in the Supabase values
+cp .env.example .env.local   # then fill in DATABASE_URL, AUTH_SECRET, SUPER_ADMIN_EMAILS
 npm run dev
 ```
 
-Then in Supabase, run the migrations **in order** in the SQL editor:
+### On Render (no terminal needed)
 
-1. `supabase/migrations/0001_tools.sql`
-2. `supabase/migrations/0002_unlisted_not_enumerable.sql`
-3. `supabase/migrations/0003_admin_users.sql` — admin roles (Phase B)
-4. `supabase/migrations/0004_site_settings.sql` — theme + branding storage bucket (Phase B)
-5. `supabase/seed.sql`
+`npm start` runs `scripts/bootstrap.mts` before the web server. On every
+start it applies pending migrations, seeds the starter catalog if the tools
+table is empty, and gives each `SUPER_ADMIN_EMAILS` address the password in
+`INITIAL_ADMIN_PASSWORD` **only if that address has no password yet**. So a
+first deploy is: set `DATABASE_URL`, `AUTH_SECRET`, `SUPER_ADMIN_EMAILS` and
+`INITIAL_ADMIN_PASSWORD` (12+ characters) in Render → Environment, deploy,
+sign in at `/admin`, change your password under your email in the admin nav,
+then delete `INITIAL_ADMIN_PASSWORD`. The bootstrap never blocks the site
+from starting — if the database is unreachable it logs and the catalog runs
+on its static fallback.
 
-Then:
+The password is an environment variable rather than anything in this
+repository on purpose: the repository is public, and a password — or even
+its hash — committed here would be readable by anyone.
 
-6. Create your first admin user by hand under **Authentication → Users**.
-   There is no signup route in this app, on purpose.
-7. **Turn off public signups**: Authentication → Providers → Email → uncheck
-   "Allow new users to sign up".
-8. Set `SUPER_ADMIN_EMAILS` to that user's address (comma-separated for more
-   than one). **This replaces the old `ADMIN_EMAILS` variable** — if you are
-   upgrading an existing deployment, rename it in your environment (Vercel
-   → Settings → Environment Variables) or `/admin` will refuse everyone.
+### By hand
 
-Steps 7 and 8 are both security controls and neither is optional.
+Against that database:
 
-A Supabase project accepts public signups at `/auth/v1/signup` by default, so
-"has a valid session" is a state any stranger can put themselves in. `/admin`
-therefore requires **membership of `SUPER_ADMIN_EMAILS`, or an active row in
-`admin_users`** — not merely a session. An empty or missing `SUPER_ADMIN_EMAILS`
-together with an empty or unreachable `admin_users` table authorizes nobody —
-it does not fall open.
+1. Run the migrations **in order** — `npm run migrate` (tracks what's
+   already applied in a `_migrations` table, safe to re-run).
+2. Seed the starter catalog rows: `psql "$DATABASE_URL" -f db/seed.sql`
+   (optional — skip it to start with an empty catalog).
+3. Create your first super admin's password:
+   `npm run create-super-admin -- you@example.com` — prompts for a password
+   (min 12 characters, typed twice, masked on a real terminal) and stores its
+   bcrypt hash in `admin_credentials`. There is no signup route in this app,
+   on purpose, and this script is the only way to seed the very first
+   credential (every other admin comes in through the invite-link flow
+   below, which needs an existing signed-in super admin to generate the
+   link).
+4. Set `SUPER_ADMIN_EMAILS` to that same address (comma-separated for more
+   than one) in your environment. This is what makes the address a *super*
+   admin, independent of whatever rows exist in the database — see invariant
+   11 below.
 
-Without Supabase configured the catalog still renders, served from the static
-snapshot in `src/lib/config/fallback-tools.ts`, and `/admin` is unreachable.
+Step 4 is a security control and is not optional: having a row in
+`admin_credentials` only means an address *can attempt* to sign in: it says
+nothing about whether that sign-in is *authorized*. `/admin` requires
+**membership of `SUPER_ADMIN_EMAILS`, or an active row in `admin_users`** —
+not merely a valid session. An empty or missing `SUPER_ADMIN_EMAILS` together
+with an empty or unreachable `admin_users` table authorizes nobody — it does
+not fall open.
+
+Without `DATABASE_URL` and `AUTH_SECRET` both configured, the catalog still
+renders, served from the static snapshot in `src/lib/config/fallback-tools.ts`,
+and `/admin` is unreachable (the proxy sends every request to `/admin/login`,
+which itself refuses to render a form with nothing to authenticate against).
 
 ## Roles (Phase B)
 
@@ -131,10 +174,16 @@ and Server Action, never trusted from a link or a nav item:
   only; the Theme and Team links are not shown to them, and the pages behind
   them redirect if reached directly.
 
-Inviting an admin sends a one-time Supabase link (`inviteUserByEmail`) — no
-password is generated, emailed, or ever seen by anyone but the invitee.
-Removing an admin from **Team** revokes their access immediately; it does not
-delete their Supabase account.
+Render has no built-in way to send email, so inviting an admin does not send
+anything: it generates a one-time link (`/admin/invite/<token>`, the token a
+random 32-byte value whose SHA-256 hash — never the token itself — is stored
+in `invite_tokens`) that the super admin copies from the Team page and shares
+with the invitee themselves, over whatever channel they'd already use. The
+link works once, expires after 7 days, and lets the invitee set their own
+password; no password is ever generated, emailed, or seen by anyone but the
+invitee. Removing an admin from **Team** revokes their access immediately; it
+does not touch their `admin_credentials` row, so re-inviting the same address
+later does not require them to invent a new password.
 
 ## Theme (Phase B)
 
@@ -154,9 +203,50 @@ Two things it will not let you do, on purpose:
   both the light and dark surfaces at 4.5:1; a failing palette is refused
   with the specific ratios that came up short, and nothing is written.
 
-Logo uploads go to a public `branding` Storage bucket, PNG/JPEG/WebP only, 512
-KB cap, enforced both in the Server Action and at the bucket level. SVG is
+Logo uploads are stored inline as a base64 `data:` URL in
+`site_settings.logo_url` — Render has no object-storage equivalent to
+Supabase Storage, and a logo is small and rarely changed, so a new external
+dependency wasn't worth adding for it. PNG/JPEG/WebP only, 512 KB cap,
+enforced in the Server Action before the bytes are ever encoded. SVG is
 rejected — it can carry `<script>`, and a raster logo covers the need.
+
+## Languages (Phase C)
+
+Every public page exists three times — `/en`, `/az`, `/ru` — each prerendered
+and separately indexable, with `hreflang` alternates in the page head and the
+sitemap. `/`, `/about` and `/tools/<slug>` redirect to the English version
+(`next.config.ts`), so old links keep working. The language switcher is plain
+links: no JavaScript, so it works with JS off like the rest of the page.
+
+Content: the English base columns stay as they were; AZ/RU translations sit
+beside them in a JSONB `i18n` column (tools, knowledge base) and a small
+`categories` table (so a category translated once is translated everywhere).
+The tool form has EN / AZ / RU tabs; the admin list flags missing
+translations. Taglines per locale are in the theme editor. The admin surface
+itself stays English.
+
+## AI assistant (Phase D)
+
+Staff sign in at `/{locale}/assistant` and ask about the tools and the
+knowledge base; answers come back in the language of the question.
+
+- **Who**: invited staff (Team → Assistant access, `@azerconnect.az` only)
+  and all admins. Staff get the same one-time invite link as admins — Render
+  cannot send email, so there is no magic link.
+- **Settings** (super admin, Admin → Assistant): model (Opus 5.5 default,
+  Sonnet 5, Haiku 4.5), API key (AES-256-GCM encrypted at rest; only the
+  last four characters are ever shown; `ANTHROPIC_API_KEY` in the
+  environment overrides it), on/off, monthly budget, questions per person per
+  hour.
+- **Knowledge base** (any admin, Admin → Knowledge base): Markdown articles
+  with optional AZ/RU versions; only published ones are used.
+- **How it answers**: the published knowledge base and the live catalog go
+  into the system prompt wholesale, cached with prompt caching; no vector
+  database. Questions are delimited as untrusted input. Revisit past ~50k
+  tokens of knowledge base (see `src/lib/assistant-prompt.ts`).
+- **Cost**: spend is computed from the API's own token counts at the
+  published per-model prices (`src/lib/ai-settings.ts`) and the assistant
+  switches itself off at the monthly budget.
 
 ## Adding a tool
 
@@ -194,6 +284,11 @@ Each suite guards something that fails silently:
   This one earned its place immediately: it disproved a claim in the source
   comments, since NFKD does **not** fold `ə` (U+0259) and so "azerbaycan" did
   not match "Azərbaycan" until an explicit fold map was added.
+- `tests/i18n.test.mts` — the Phase C gate: a missing translation falls
+  back to English rather than blank; every locale dictionary has every key;
+  Russian plurals.
+- `tests/secret-box.test.mts` — the stored API key round-trips, and a
+  tampered ciphertext or a different key is refused.
 - `tests/contrast.test.mts` — the WCAG contrast-ratio math the theme editor's
   save gate depends on (Phase B). Verified against the exact numbers in
   `globals.css`'s header comment, plus edge cases (equal colours, black/white,
@@ -202,6 +297,28 @@ Each suite guards something that fails silently:
 
 ## Notes
 
+- **Phases C and D shipped** (trilingual, staff assistant), plus: the tagline
+  now reads "Everything we've built, in one place."; "Simple" in the home
+  heading is Azerconnect leaf green; admins can change their own password
+  (Admin → your email).
+- **`[locale]` deliberately does not set `dynamicParams = false`.** In this
+  Next.js version it made every ISR regeneration fail with
+  `NoFallbackError`, so catalog edits never reached the public pages. Unknown
+  locales still 404, via `isLocale()` in the layout.
+
+- **Migrated off Supabase to plain Postgres + a hand-rolled session (the Render migration),
+  to run entirely on Render.** Auth is now `jose` (HS256 JWT in an httpOnly
+  cookie) + `bcryptjs`, with DB-backed login rate limiting
+  (`admin_credentials.failed_attempts`/`locked_until`) replacing Supabase
+  Auth's built-in throttling. RLS is gone — there's no public PostgREST
+  endpoint to guard against once the database is reachable only from server
+  code, so filtering (e.g. hiding `unlisted` rows) is explicit SQL instead.
+  This was made simpler than expected by a Next.js 16 change: `middleware.ts`
+  is now `proxy.ts` and **defaults to the Node.js runtime** (it was Edge-only
+  before 15.2), so `src/proxy.ts` can run a real `pg` query directly instead
+  of needing an Edge-safe workaround. See `db/migrations/`, `src/lib/db/`,
+  `src/lib/session.ts`, and the Setup/Roles/Theme sections above, all of
+  which describe the current (Postgres) state, not the old Supabase one.
 - **Next.js is pinned to 16.3.6, not 16.2.9.** 16.2.9 carries a critical
   advisory set including an App Router middleware/proxy bypass and
   unauthenticated disclosure of Server Function endpoints — both of which bear

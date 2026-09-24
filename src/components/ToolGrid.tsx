@@ -1,4 +1,5 @@
 import type { Tool } from "@/lib/types";
+import type { Locale } from "@/lib/i18n";
 import { ToolCard, ToolDetailsLink } from "./ToolCard";
 
 /**
@@ -9,7 +10,7 @@ import { ToolCard, ToolDetailsLink } from "./ToolCard";
  * drop list semantics entirely, which would cost screen-reader users the
  * "list of N items" announcement and item positions.
  */
-export function ToolGrid({ tools }: { tools: Tool[] }) {
+export function ToolGrid({ tools, locale }: { tools: Tool[]; locale: Locale }) {
   return (
     <ul
       role="list"
@@ -18,9 +19,9 @@ export function ToolGrid({ tools }: { tools: Tool[] }) {
     >
       {tools.map((tool) => (
         <li key={tool.id} className="flex flex-col gap-1.5">
-          <ToolCard tool={tool} />
+          <ToolCard tool={tool} locale={locale} />
           <div className="pl-1">
-            <ToolDetailsLink tool={tool} />
+            <ToolDetailsLink tool={tool} locale={locale} />
           </div>
         </li>
       ))}

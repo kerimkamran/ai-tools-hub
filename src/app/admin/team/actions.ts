@@ -99,3 +99,74 @@ export async function removeAdmin(
   revalidatePath("/admin/team");
   return {};
 }
+
+// ---------------------------------------------------------------------------
+// Staff -- assistant access only (Phase D).
+// ---------------------------------------------------------------------------
+
+/** The staff domain rule. Enforced here BEFORE any write, and again by the
+ *  staff_users CHECK constraint (db/migrations/0005_assistant.sql). */
+const STAFF_DOMAIN = "@azerconnect.az";
+
+export async function inviteStaff(
+  _prev: InviteState,
+  formData: FormData
+): Promise<InviteState> {
+  const superAdmin = await getSuperAdminOrNull();
+  if (!superAdmin?.email) return { error: "Not signed in as a super admin." };
+
+  const parsed = emailSchema.safeParse(formData.get("email"));
+  if (!parsed.success) return { error: "Enter a valid email address." };
+  const email = parsed.data;
+
+  if (!email.endsWith(STAFF_DOMAIN)) {
+    return { error: `Assistant access is for ${STAFF_DOMAIN} addresses only.` };
+  }
+
+  await query(
+    `insert into staff_users (email, invited_by) values ($1, $2)
+     on conflict (email) do nothing`,
+    [email, superAdmin.email.toLowerCase()]
+  );
+
+  // Someone who already has a password (an admin, or re-invited staff) does
+  // not need a link -- access is granted by the row above.
+  const hasPassword = await queryOne<{ email: string }>(
+    "select email from admin_credentials where email = $1",
+    [email]
+  );
+  revalidatePath("/admin/team");
+  if (hasPassword) return { ok: true };
+
+  const token = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const expiresAt = new Date(Date.now() + INVITE_LIFETIME_MS).toISOString();
+  await query("delete from invite_tokens where email = $1", [email]);
+  await query(
+    `insert into invite_tokens (token_hash, email, created_by, expires_at)
+     values ($1, $2, $3, $4)`,
+    [tokenHash, email, superAdmin.email.toLowerCase(), expiresAt]
+  );
+
+  return { ok: true, inviteUrl: `${siteUrl()}/admin/invite/${token}` };
+}
+
+export async function removeStaff(
+  _prev: RemoveState,
+  formData: FormData
+): Promise<RemoveState> {
+  const superAdmin = await getSuperAdminOrNull();
+  if (!superAdmin) return { error: "Not signed in as a super admin." };
+
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!email) return { error: "No staff member specified." };
+
+  const row = await queryOne<{ email: string }>(
+    "delete from staff_users where email = $1 returning email",
+    [email]
+  );
+  if (!row) return { error: "That staff member no longer exists." };
+
+  revalidatePath("/admin/team");
+  return {};
+}

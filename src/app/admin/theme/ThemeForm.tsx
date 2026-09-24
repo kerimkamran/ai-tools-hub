@@ -31,14 +31,14 @@ const TOKEN_LABEL: Record<BrandToken, string> = {
 };
 
 function Field({
-  label, name, defaultValue, error, hint,
-}: { label: string; name: string; defaultValue?: string; error?: string; hint?: string }) {
+  label, name, defaultValue, error, hint, optional,
+}: { label: string; name: string; defaultValue?: string; error?: string; hint?: string; optional?: boolean }) {
   return (
     <div>
       <label htmlFor={name} className="block text-sm font-medium">{label}</label>
       {hint && <p className="text-xs" style={{ color: "var(--faint)" }}>{hint}</p>}
       <input
-        id={name} name={name} defaultValue={defaultValue} required
+        id={name} name={name} defaultValue={defaultValue} required={!optional}
         className={FIELD} style={FIELD_STYLE}
         aria-invalid={error ? true : undefined}
       />
@@ -175,7 +175,15 @@ export function ThemeForm({ settings }: { settings: SiteSettings }) {
         </div>
         <Field label="Attribution" name="attribution" defaultValue={settings.attribution} error={e.attribution}
           hint="Shown beneath the wordmark. Leave it in place to credit Azerconnect, or blank it out." />
-        <Field label="Tagline" name="tagline" defaultValue={settings.tagline} error={e.tagline} />
+        <Field label="Tagline (English)" name="tagline" defaultValue={settings.tagline} error={e.tagline} />
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Tagline (Azərbaycanca)" name="tagline_az"
+            defaultValue={settings.taglineI18n.az?.tagline ?? ""} error={e.taglineAz}
+            hint="Blank falls back to English." optional />
+          <Field label="Tagline (Русский)" name="tagline_ru"
+            defaultValue={settings.taglineI18n.ru?.tagline ?? ""} error={e.taglineRu}
+            hint="Blank falls back to English." optional />
+        </div>
 
         <div>
           <label htmlFor="logo" className="block text-sm font-medium">Logo</label>

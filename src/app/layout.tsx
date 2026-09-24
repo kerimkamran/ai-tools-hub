@@ -3,6 +3,7 @@ import { Manrope } from "next/font/google";
 import "./globals.css";
 import { siteUrl } from "@/lib/site";
 import { buildThemeStyle, getSiteSettings } from "@/lib/settings";
+import { strings } from "@/lib/strings";
 
 /**
  * Manrope: the closest free match to Azerconnect's corporate typeface, Mark
@@ -12,13 +13,14 @@ import { buildThemeStyle, getSiteSettings } from "@/lib/settings";
  * runtime request to Google and no extra font-src entry in the CSP.
  */
 const manrope = Manrope({
-  subsets: ["latin"],
+  // cyrillic for the Russian locale (Phase C); Azerbaijani letters (ə, ğ, ı,
+  // ş, ç, ö, ü) are covered by latin + latin-ext.
+  subsets: ["latin", "latin-ext", "cyrillic"],
   variable: "--font-manrope",
   display: "swap",
 });
 
-const DESCRIPTION =
-  "A single home for a small collection of AI tools: search, browse and open them from one page.";
+const DESCRIPTION = strings.siteDescription;
 
 /**
  * Was a static `export const metadata`. Brand name and tagline are now
@@ -67,6 +69,10 @@ export default async function RootLayout({
   // (src/lib/settings.ts), so this stays compatible with static/ISR
   // delivery exactly like the tools registry does; a save in the theme
   // editor calls revalidatePath("/", "layout") to bust it everywhere.
+  //
+  // lang="en" here is the default; each /az and /ru page corrects it before
+  // first paint from src/app/[locale]/layout.tsx (this layout cannot see the
+  // locale segment's params).
   const settings = await getSiteSettings();
 
   return (

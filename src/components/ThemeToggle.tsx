@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { strings } from "@/lib/strings";
+import { getStrings } from "@/lib/strings";
+import type { Locale } from "@/lib/i18n";
 
 const KEY = "hub-theme";
 
-export function ThemeToggle() {
+export function ThemeToggle({ locale }: { locale: Locale }) {
+  const strings = getStrings(locale);
   const [dark, setDark] = useState(false);
   const [ready, setReady] = useState(false);
 

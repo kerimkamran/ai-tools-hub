@@ -1,3 +1,9 @@
+import { pickLocalized, sanitizeI18n, type I18nMap, type Locale } from "./i18n";
+
+/** Tool fields that carry per-locale translations (Phase C). */
+export const TOOL_I18N_KEYS = ["name", "tagline", "description", "accessNote"] as const;
+export type ToolI18nKey = (typeof TOOL_I18N_KEYS)[number];
+
 /** Lifecycle of a catalog entry. Only `published` and `planned` are ever
  *  readable by the public (enforced in RLS, not just here). */
 export type ToolStatus = "published" | "planned" | "unlisted" | "archived";
@@ -34,6 +40,11 @@ export type Tool = {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
+  /** AZ/RU translations of TOOL_I18N_KEYS. English is the base columns above. */
+  i18n: I18nMap<ToolI18nKey>;
+  /** Display label for `category` in the current locale. Set by localizeTool();
+   *  filtering still keys on `category`, which stays the English value. */
+  categoryLabel?: string;
 };
 
 export const ACCESS_LABEL: Record<ToolAccess, string> = {
@@ -67,6 +78,7 @@ export type ToolRow = {
   sort_order: number;
   created_at: string;
   updated_at: string;
+  i18n?: unknown;
 };
 
 export function rowToTool(r: ToolRow): Tool {
@@ -87,6 +99,35 @@ export function rowToTool(r: ToolRow): Tool {
     sortOrder: r.sort_order,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    i18n: sanitizeI18n(r.i18n, TOOL_I18N_KEYS),
+  };
+}
+
+/** Category label translations: { "HR": { "az": "İK", "ru": "HR" } }. */
+export type CategoryLabels = Record<string, Partial<Record<"az" | "ru", string>>>;
+
+/**
+ * The tool as a visitor in `locale` sees it: translated text where it
+ * exists, English base values where it does not. Never produces a blank
+ * card -- every field falls back to its base column.
+ */
+export function localizeTool(tool: Tool, locale: Locale, categories: CategoryLabels = {}): Tool {
+  // i18n is emptied on the way out: the visitor's page only needs the text
+  // in ITS language, and shipping every translation in the page payload
+  // would roughly triple it for nothing.
+  if (locale === "en") return { ...tool, i18n: {}, categoryLabel: tool.category };
+  const accessNote = tool.accessNote
+    ? pickLocalized(tool.i18n, locale, "accessNote", tool.accessNote)
+    : null;
+  const catLabel = categories[tool.category]?.[locale];
+  return {
+    ...tool,
+    name: pickLocalized(tool.i18n, locale, "name", tool.name),
+    tagline: pickLocalized(tool.i18n, locale, "tagline", tool.tagline),
+    description: pickLocalized(tool.i18n, locale, "description", tool.description),
+    accessNote,
+    i18n: {},
+    categoryLabel: catLabel && catLabel.trim() ? catLabel : tool.category,
   };
 }
 

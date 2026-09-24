@@ -5,16 +5,20 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node --no-warnings --experimental-strip-types scripts/bootstrap.mts; next start",
     "lint": "eslint",
     "test:ssrf": "node --no-warnings --experimental-strip-types tests/ssrf.test.mts",
     "test:search": "node --no-warnings --experimental-strip-types tests/search.test.mts",
     "test:contrast": "node --no-warnings --experimental-strip-types tests/contrast.test.mts",
-    "test": "npm run test:ssrf && npm run test:search && npm run test:contrast",
+    "test": "npm run test:ssrf && npm run test:search && npm run test:contrast && npm run test:i18n && npm run test:secret",
     "migrate": "node --no-warnings --experimental-strip-types scripts/migrate.mts",
-    "create-super-admin": "node --no-warnings --experimental-strip-types scripts/create-super-admin.mts"
+    "create-super-admin": "node --no-warnings --experimental-strip-types scripts/create-super-admin.mts",
+    "bootstrap": "node --no-warnings --experimental-strip-types scripts/bootstrap.mts",
+    "test:i18n": "node --no-warnings --experimental-strip-types tests/i18n.test.mts",
+    "test:secret": "node --no-warnings --experimental-strip-types --conditions=react-server tests/secret-box.test.mts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "bcryptjs": "^3.0.3",
     "jose": "^6.2.12",
     "next": "16.3.6",

@@ -9,10 +9,13 @@ import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
  * differences:
  *
  *  - connect-src allows NO external host at all -- not an AI provider, not a
- *    database. The hub makes zero model calls and holds zero provider keys,
- *    and Postgres is only ever reached from server-side code (src/lib/db),
- *    never from the browser; if any hostname ever needs to appear here,
- *    something has gone wrong.
+ *    database. Since Phase D the hub DOES call Claude, but only from server
+ *    code (src/app/api/assistant/route.ts): the browser talks to this
+ *    origin's own /api/assistant and never to api.anthropic.com, so the
+ *    provider key never reaches a client and CSP needs no new host. Postgres
+ *    is likewise only ever reached from server-side code (src/lib/db). If
+ *    any external hostname ever needs to appear here, something has gone
+ *    wrong.
  *  - frame-ancestors 'none' (plus X-Frame-Options), because nothing should
  *    embed the catalog either.
  *
@@ -69,6 +72,20 @@ export default function nextConfig(phase: string): NextConfig {
   const isDev = phase === PHASE_DEVELOPMENT_SERVER;
   return {
     poweredByHeader: false,
+    /**
+     * Phase C moved every public page under a locale segment. The old
+     * addresses keep working -- and keep their search-engine history -- by
+     * redirecting to English. Temporary (307) rather than permanent so the
+     * default locale can change later without browsers having cached it.
+     */
+    async redirects() {
+      return [
+        { source: "/", destination: "/en", permanent: false },
+        { source: "/about", destination: "/en/about", permanent: false },
+        { source: "/tools/:slug", destination: "/en/tools/:slug", permanent: false },
+        { source: "/assistant", destination: "/en/assistant", permanent: false },
+      ];
+    },
     async headers() {
       return [{ source: "/(.*)", headers: securityHeaders(isDev) }];
     },

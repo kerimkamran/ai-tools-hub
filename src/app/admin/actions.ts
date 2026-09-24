@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { query, queryOne } from "@/lib/db/client";
 import { getAdminOrNull } from "@/lib/auth";
-import { emptyToNull, parseTags, toolInputSchema } from "@/lib/validate";
+import { compactI18n, emptyToNull, parseTags, toolI18nSchema, toolInputSchema } from "@/lib/validate";
 
 /**
  * Every mutating action re-checks the user itself. It does NOT rely on the
@@ -32,11 +32,25 @@ function formToInput(formData: FormData) {
   };
 }
 
-function revalidateAll(slug?: string) {
-  revalidatePath("/");
+function formToI18n(formData: FormData) {
+  const read = (loc: "az" | "ru") => ({
+    name: String(formData.get(`name_${loc}`) ?? ""),
+    tagline: String(formData.get(`tagline_${loc}`) ?? ""),
+    description: String(formData.get(`description_${loc}`) ?? ""),
+    accessNote: String(formData.get(`accessNote_${loc}`) ?? ""),
+  });
+  return { az: read("az"), ru: read("ru") };
+}
+
+/**
+ * Since Phase C every public page exists once per locale (/en, /az, /ru),
+ * so a catalog change busts the whole public tree in one call rather than
+ * listing every locale x route combination by hand -- the same approach the
+ * theme editor already uses.
+ */
+function revalidateAll() {
+  revalidatePath("/", "layout");
   revalidatePath("/sitemap.xml");
-  revalidatePath("/admin");
-  if (slug) revalidatePath(`/tools/${slug}`);
 }
 
 type PgError = { code?: string; constraint?: string; message: string };
@@ -87,6 +101,18 @@ export async function saveTool(
 
   const t = parsed.data;
 
+  const parsedI18n = toolI18nSchema.safeParse(formToI18n(formData));
+  if (!parsedI18n.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsedI18n.error.issues) {
+      const [loc, field] = issue.path.map(String);
+      const key = `${field}_${loc}`;
+      if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+    }
+    return { error: "Please fix the highlighted translation fields.", fieldErrors };
+  }
+  const i18n = JSON.stringify(compactI18n(parsedI18n.data));
+
   // A published tool must go somewhere. The migration enforces this too; this
   // check exists so the admin reads a sentence, not a constraint name.
   if (t.status === "published" && !t.url) {
@@ -117,14 +143,15 @@ export async function saveTool(
         `update tools set
            id = $1, slug = $2, name = $3, tagline = $4, description = $5,
            category = $6, tags = $7, icon = $8, url = $9, health_url = $10,
-           access = $11, access_note = $12, status = $13, sort_order = $14
+           access = $11, access_note = $12, status = $13, sort_order = $14,
+           i18n = $16
          where id = $15
          returning id`,
         [
           t.id, t.slug, t.name, t.tagline, t.description,
           t.category, t.tags, t.icon, t.url, t.healthUrl,
           t.access, t.accessNote, t.status, t.sortOrder,
-          originalId,
+          originalId, i18n,
         ]
       );
       if (rows.length === 0) {
@@ -134,12 +161,12 @@ export async function saveTool(
       await query(
         `insert into tools
            (id, slug, name, tagline, description, category, tags, icon, url,
-            health_url, access, access_note, status, sort_order)
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+            health_url, access, access_note, status, sort_order, i18n)
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
         [
           t.id, t.slug, t.name, t.tagline, t.description,
           t.category, t.tags, t.icon, t.url, t.healthUrl,
-          t.access, t.accessNote, t.status, t.sortOrder,
+          t.access, t.accessNote, t.status, t.sortOrder, i18n,
         ]
       );
     }
@@ -147,7 +174,7 @@ export async function saveTool(
     return mapWriteError(err);
   }
 
-  revalidateAll(t.slug);
+  revalidateAll();
   redirect("/admin");
 }
 

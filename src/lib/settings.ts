@@ -4,6 +4,7 @@ import { hasDatabaseConfig, queryOne } from "@/lib/db/client";
 import { isValidHex } from "@/lib/contrast";
 import type { BrandToken, ModeColors } from "@/lib/theme-validate";
 import { strings } from "@/lib/strings";
+import { pickLocalized, sanitizeI18n, type I18nMap, type Locale } from "@/lib/i18n";
 
 /**
  * THE SEAM for site branding, same pattern as src/lib/registry.ts for tools:
@@ -24,9 +25,16 @@ export type SiteSettings = {
   wordmarkSecondary: string;
   attribution: string;
   tagline: string;
+  /** AZ/RU taglines (Phase C). English is `tagline`. */
+  taglineI18n: I18nMap<"tagline">;
   logoUrl: string | null;
   colors: { light: ModeColors; dark: ModeColors };
 };
+
+/** The tagline in `locale`, falling back to the English one. */
+export function localizedTagline(settings: SiteSettings, locale: Locale): string {
+  return pickLocalized(settings.taglineI18n, locale, "tagline", settings.tagline);
+}
 
 /**
  * Exactly what Phase A shipped in globals.css and db/migrations/0002 seeds
@@ -39,6 +47,10 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   wordmarkSecondary: ".simple",
   attribution: "by Azerconnect Group",
   tagline: strings.tagline,
+  taglineI18n: {
+    az: { tagline: "Yaratdığımız hər şey, bir yerdə." },
+    ru: { tagline: "Всё, что мы создали, — в одном месте." },
+  },
   logoUrl: null,
   colors: {
     light: {
@@ -68,6 +80,7 @@ type SettingsRow = {
   wordmark_secondary: string;
   attribution: string;
   tagline: string;
+  tagline_i18n?: unknown;
   logo_url: string | null;
   colors: unknown;
 };
@@ -80,6 +93,7 @@ function rowToSettings(row: SettingsRow): SiteSettings {
     wordmarkSecondary: row.wordmark_secondary,
     attribution: row.attribution,
     tagline: row.tagline,
+    taglineI18n: sanitizeI18n(row.tagline_i18n, ["tagline"] as const),
     logoUrl: row.logo_url,
     // A malformed or partial colors blob (should not happen -- writes are
     // gated by theme-validate.ts -- but this is a READ path with a public
@@ -104,7 +118,7 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   if (!hasDatabaseConfig()) return DEFAULT_SITE_SETTINGS;
   try {
     const row = await queryOne<SettingsRow>(
-      "select brand_name,wordmark_primary,wordmark_secondary,attribution,tagline,logo_url,colors from site_settings where id = 1"
+      "select brand_name,wordmark_primary,wordmark_secondary,attribution,tagline,tagline_i18n,logo_url,colors from site_settings where id = 1"
     );
     if (!row) return DEFAULT_SITE_SETTINGS;
     return rowToSettings(row);

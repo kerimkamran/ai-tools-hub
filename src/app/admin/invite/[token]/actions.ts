@@ -2,9 +2,10 @@
 
 import { redirect } from "next/navigation";
 import { createHash } from "node:crypto";
-import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { query, queryOne } from "@/lib/db/client";
+import { MIN_PASSWORD_LENGTH, setPassword } from "@/lib/credentials";
+import { isAdminEmail } from "@/lib/auth";
 
 /**
  * Accept-invite flow -- the Render replacement for Supabase's
@@ -19,7 +20,7 @@ export type AcceptState = { error?: string };
 const inputSchema = z
   .object({
     token: z.string().trim().min(1),
-    password: z.string().min(12, "Must be at least 12 characters."),
+    password: z.string().min(MIN_PASSWORD_LENGTH, `Must be at least ${MIN_PASSWORD_LENGTH} characters.`),
     confirm: z.string(),
   })
   .refine((v) => v.password === v.confirm, {
@@ -53,19 +54,11 @@ export async function acceptInvite(
     return { error: "This invite link has expired. Ask for a new one." };
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  await query(
-    `insert into admin_credentials (email, password_hash, failed_attempts, locked_until)
-     values ($1, $2, 0, null)
-     on conflict (email) do update set
-       password_hash = excluded.password_hash,
-       failed_attempts = 0,
-       locked_until = null`,
-    [row.email, passwordHash]
-  );
+  await setPassword(row.email, password);
 
   // Single-use: the token cannot be replayed once a password is set.
   await query("delete from invite_tokens where token_hash = $1", [tokenHash]);
 
-  redirect("/admin/login?invited=1");
+  // Admins sign in to /admin; staff (Phase D) sign in to the assistant.
+  redirect((await isAdminEmail(row.email)) ? "/admin/login?invited=1" : "/en/assistant/login?invited=1");
 }

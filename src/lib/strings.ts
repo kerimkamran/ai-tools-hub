@@ -1,13 +1,31 @@
+import type { Locale } from "./i18n";
+import type { ToolAccess } from "./types";
+
 /**
- * Every user-visible string in one place.
+ * Every user-visible PUBLIC string, one dictionary per locale (Phase C).
  *
- * The hub is English-only in MVP, but the CV Screener will need AZ/RU/EN, so
- * keeping copy here makes adding locales a mechanical change rather than a
- * refactor of every component.
+ * Safe to import from client components. Client components receive the
+ * locale (a plain string) as a prop and call getStrings() themselves --
+ * a dictionary contains functions, and functions cannot cross the
+ * server -> client props boundary.
+ *
+ * The admin surface is deliberately English-only (see the plan's "one
+ * deliberate scope cut") and keeps using the `strings` export below.
  */
-export const strings = {
+
+function ruPlural(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+const en = {
   brand: "One.Simple",
-  tagline: "Everything I've built, in one place.",
+  tagline: "Everything we've built, in one place.",
+  siteDescription:
+    "A single home for a small collection of AI tools: search, browse and open them from one page.",
   searchPlaceholder: "Search tools…",
   searchLabel: "Search AI tools",
   categoriesLabel: "Filter by category",
@@ -16,8 +34,12 @@ export const strings = {
   noToolsYet: "No tools published yet.",
   noMatch: (q: string) => `No tools match “${q}”.`,
   resultCount: (n: number) => (n === 1 ? "1 tool" : `${n} tools`),
+  announceQuery: (q: string) => `for "${q}"`,
+  announceCategory: (c: string) => `in ${c}`,
   opensInNewTab: "opens in new tab",
   details: "Details",
+  detailsAbout: (name: string) => ` about ${name}`,
+  onHost: (host: string) => `on ${host}`,
   planned: "Planned",
   comingSoon: "Coming soon",
   waking: "Waking up…",
@@ -27,4 +49,198 @@ export const strings = {
   openTool: (name: string) => `Open ${name}`,
   themeToLight: "Switch to light theme",
   themeToDark: "Switch to dark theme",
-} as const;
+  language: "Language",
+  access: {
+    open: "Open",
+    "sign-in": "Sign-in required",
+    "invite-only": "Invite only",
+  } satisfies Record<ToolAccess, string>,
+  aboutDescription: "What this site is, and what it is not.",
+  aboutBody: [
+    "This is a directory, not a platform. Each tool listed here is its own application, built and deployed independently. Opening one takes you to that application on its own address.",
+    "The directory itself has no accounts and asks for nothing. Some of the tools do have their own sign-in, and where that is true the card says so before you click.",
+  ],
+  notFoundTitle: "Not found",
+  notFoundBody: "That page does not exist.",
+  assistant: {
+    nav: "Assistant",
+    title: "Assistant",
+    intro:
+      "Ask about the tools in this hub and the knowledge base. Answers are in the language you ask in.",
+    staffOnly: "Staff only. Sign in with the account you were invited with.",
+    placeholder: "Ask a question…",
+    send: "Send",
+    sending: "Thinking…",
+    you: "You",
+    bot: "Assistant",
+    newChat: "New chat",
+    signIn: "Sign in",
+    signOut: "Sign out",
+    email: "Email",
+    password: "Password",
+    signInFailed: "Sign-in failed. Check the email and password.",
+    locked: "Too many failed attempts. Try again in a few minutes.",
+    passwordSet: "Password set. Sign in below.",
+    noAccess: "You are signed in, but this account does not have assistant access.",
+    unavailable: "The assistant is not available right now.",
+    notConfigured: "The assistant has not been set up yet.",
+    rateLimited: "You have reached the hourly limit. Please try again later.",
+    budgetReached: "The assistant has reached its monthly budget and is paused.",
+    tooLong: (max: number) => `Please keep questions under ${max} characters.`,
+    error: "Something went wrong. Please try again.",
+    disclaimer: "Answers can be wrong. Check anything important with the tool itself.",
+  },
+};
+
+export type Strings = typeof en;
+
+const az: Strings = {
+  brand: "One.Simple",
+  tagline: "Yaratdığımız hər şey, bir yerdə.",
+  siteDescription:
+    "Süni intellekt alətləri üçün vahid ünvan: onları bir səhifədən axtarın, nəzərdən keçirin və açın.",
+  searchPlaceholder: "Alətləri axtarın…",
+  searchLabel: "Süni intellekt alətlərində axtarış",
+  categoriesLabel: "Kateqoriyaya görə süzgəc",
+  allCategories: "Hamısı",
+  clear: "Təmizlə",
+  noToolsYet: "Hələ heç bir alət dərc olunmayıb.",
+  noMatch: (q) => `“${q}” sorğusuna uyğun alət tapılmadı.`,
+  resultCount: (n) => `${n} alət`,
+  announceQuery: (q) => `“${q}” üzrə`,
+  announceCategory: (c) => `${c} kateqoriyasında`,
+  opensInNewTab: "yeni tabda açılır",
+  details: "Ətraflı",
+  detailsAbout: (name) => ` — ${name}`,
+  onHost: (host) => `${host} ünvanında`,
+  planned: "Planlaşdırılır",
+  comingSoon: "Tezliklə",
+  waking: "Oyanır…",
+  live: "İşləyir",
+  backToHub: "← Bütün alətlər",
+  about: "Haqqında",
+  openTool: (name) => `Aç: ${name}`,
+  themeToLight: "İşıqlı mövzuya keç",
+  themeToDark: "Qaranlıq mövzuya keç",
+  language: "Dil",
+  access: {
+    open: "Açıq",
+    "sign-in": "Giriş tələb olunur",
+    "invite-only": "Yalnız dəvətlə",
+  },
+  aboutDescription: "Bu sayt nədir və nə deyil.",
+  aboutBody: [
+    "Bu, platforma deyil, kataloqdur. Burada göstərilən hər alət müstəqil hazırlanmış və yerləşdirilmiş ayrıca tətbiqdir. Birini açanda həmin tətbiqin öz ünvanına keçirsiniz.",
+    "Kataloqun özündə hesab yoxdur və heç nə tələb olunmur. Bəzi alətlərin öz girişi var və belə hallarda kart bunu siz klikləməzdən əvvəl bildirir.",
+  ],
+  notFoundTitle: "Tapılmadı",
+  notFoundBody: "Belə səhifə mövcud deyil.",
+  assistant: {
+    nav: "Köməkçi",
+    title: "Köməkçi",
+    intro:
+      "Bu kataloqdakı alətlər və bilik bazası barədə soruşun. Cavab sualı verdiyiniz dildə olacaq.",
+    staffOnly: "Yalnız əməkdaşlar üçün. Dəvət aldığınız hesabla daxil olun.",
+    placeholder: "Sualınızı yazın…",
+    send: "Göndər",
+    sending: "Düşünür…",
+    you: "Siz",
+    bot: "Köməkçi",
+    newChat: "Yeni söhbət",
+    signIn: "Daxil ol",
+    signOut: "Çıxış",
+    email: "E-poçt",
+    password: "Şifrə",
+    signInFailed: "Daxil olmaq alınmadı. E-poçtu və şifrəni yoxlayın.",
+    locked: "Çox sayda uğursuz cəhd. Bir neçə dəqiqədən sonra yenidən cəhd edin.",
+    passwordSet: "Şifrə təyin edildi. Aşağıda daxil olun.",
+    noAccess: "Siz daxil olmusunuz, lakin bu hesabın köməkçiyə girişi yoxdur.",
+    unavailable: "Köməkçi hazırda əlçatan deyil.",
+    notConfigured: "Köməkçi hələ qurulmayıb.",
+    rateLimited: "Saatlıq limitə çatdınız. Bir az sonra yenidən cəhd edin.",
+    budgetReached: "Köməkçi aylıq büdcəsinə çatıb və dayandırılıb.",
+    tooLong: (max) => `Sualı ${max} simvoldan qısa yazın.`,
+    error: "Xəta baş verdi. Yenidən cəhd edin.",
+    disclaimer: "Cavablar səhv ola bilər. Vacib məlumatı alətin özündə yoxlayın.",
+  },
+};
+
+const ru: Strings = {
+  brand: "One.Simple",
+  tagline: "Всё, что мы создали, — в одном месте.",
+  siteDescription:
+    "Единое место для небольшой коллекции ИИ-инструментов: ищите, просматривайте и открывайте их с одной страницы.",
+  searchPlaceholder: "Поиск инструментов…",
+  searchLabel: "Поиск ИИ-инструментов",
+  categoriesLabel: "Фильтр по категории",
+  allCategories: "Все",
+  clear: "Очистить",
+  noToolsYet: "Пока нет опубликованных инструментов.",
+  noMatch: (q) => `Нет инструментов по запросу «${q}».`,
+  resultCount: (n) => `${n} ${ruPlural(n, "инструмент", "инструмента", "инструментов")}`,
+  announceQuery: (q) => `по запросу «${q}»`,
+  announceCategory: (c) => `в категории ${c}`,
+  opensInNewTab: "откроется в новой вкладке",
+  details: "Подробнее",
+  detailsAbout: (name) => ` о ${name}`,
+  onHost: (host) => `на ${host}`,
+  planned: "Запланировано",
+  comingSoon: "Скоро",
+  waking: "Запускается…",
+  live: "Работает",
+  backToHub: "← Все инструменты",
+  about: "О сайте",
+  openTool: (name) => `Открыть ${name}`,
+  themeToLight: "Включить светлую тему",
+  themeToDark: "Включить тёмную тему",
+  language: "Язык",
+  access: {
+    open: "Открытый доступ",
+    "sign-in": "Нужен вход",
+    "invite-only": "Только по приглашению",
+  },
+  aboutDescription: "Что это за сайт и чем он не является.",
+  aboutBody: [
+    "Это каталог, а не платформа. Каждый инструмент здесь — отдельное приложение, созданное и развёрнутое независимо. Открывая его, вы переходите в это приложение по его собственному адресу.",
+    "У самого каталога нет учётных записей, и он ничего не запрашивает. У некоторых инструментов есть собственный вход — в таком случае карточка сообщает об этом до того, как вы нажмёте.",
+  ],
+  notFoundTitle: "Не найдено",
+  notFoundBody: "Такой страницы не существует.",
+  assistant: {
+    nav: "Ассистент",
+    title: "Ассистент",
+    intro:
+      "Спрашивайте об инструментах каталога и базе знаний. Ответ будет на языке вопроса.",
+    staffOnly: "Только для сотрудников. Войдите с учётной записью, на которую пришло приглашение.",
+    placeholder: "Задайте вопрос…",
+    send: "Отправить",
+    sending: "Думаю…",
+    you: "Вы",
+    bot: "Ассистент",
+    newChat: "Новый чат",
+    signIn: "Войти",
+    signOut: "Выйти",
+    email: "Эл. почта",
+    password: "Пароль",
+    signInFailed: "Не удалось войти. Проверьте почту и пароль.",
+    locked: "Слишком много неудачных попыток. Попробуйте через несколько минут.",
+    passwordSet: "Пароль установлен. Войдите ниже.",
+    noAccess: "Вы вошли, но у этой учётной записи нет доступа к ассистенту.",
+    unavailable: "Ассистент сейчас недоступен.",
+    notConfigured: "Ассистент ещё не настроен.",
+    rateLimited: "Вы достигли часового лимита. Попробуйте позже.",
+    budgetReached: "Ассистент исчерпал месячный бюджет и приостановлен.",
+    tooLong: (max) => `Сократите вопрос до ${max} символов.`,
+    error: "Что-то пошло не так. Попробуйте ещё раз.",
+    disclaimer: "Ответы могут быть неточными. Важное проверяйте в самом инструменте.",
+  },
+};
+
+const DICTIONARIES: Record<Locale, Strings> = { en, az, ru };
+
+export function getStrings(locale: Locale): Strings {
+  return DICTIONARIES[locale] ?? en;
+}
+
+/** English dictionary -- the admin surface and any locale-less code path. */
+export const strings = en;

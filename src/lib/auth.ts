@@ -72,6 +72,51 @@ async function isAdmin(email: string | null | undefined): Promise<boolean> {
   return isInvitedAdmin(email);
 }
 
+/** Exported for the invite-accept flow, which must know where to send a
+ *  newly-set password: the admin sign-in or the assistant's. */
+export async function isAdminEmail(email: string): Promise<boolean> {
+  return isAdmin(email);
+}
+
+/** An invited staff member (Phase D). Only @azerconnect.az addresses can be
+ *  in this table -- the migration's CHECK constraint enforces it. */
+export async function isStaffEmail(email: string): Promise<boolean> {
+  try {
+    const row = await queryOne<{ email: string }>(
+      "select email from staff_users where email = $1",
+      [email.toLowerCase()]
+    );
+    return Boolean(row);
+  } catch (err) {
+    console.error("[auth] staff_users lookup failed:", err);
+    return false;
+  }
+}
+
+/**
+ * Who may use the assistant: invited staff (@azerconnect.az only) and
+ * anyone who is already an admin. Admins are included because they are
+ * explicitly authorized people who maintain the knowledge base the
+ * assistant answers from; the domain rule applies to the open-ended staff
+ * list, not to accounts a super admin has individually granted.
+ */
+export async function canUseAssistant(email: string | null | undefined): Promise<boolean> {
+  if (!email) return false;
+  if (await isAdmin(email)) return true;
+  return isStaffEmail(email);
+}
+
+/** The signed-in email (any role), or null. */
+export async function getSessionEmail(): Promise<string | null> {
+  return currentSessionEmail();
+}
+
+export async function getAssistantUserOrNull(): Promise<{ email: string } | null> {
+  const email = await currentSessionEmail();
+  if (!email) return null;
+  return (await canUseAssistant(email)) ? { email } : null;
+}
+
 /** True once both the database and the session secret are configured --
  *  used by the login page to say "not available on this deployment" rather
  *  than offering a form that cannot work. */
