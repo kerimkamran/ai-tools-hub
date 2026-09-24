@@ -96,8 +96,8 @@ export function secondaryTokens(mode: Mode, p: Palette): Record<SecondaryToken, 
 // ---- Shape, type, background ---------------------------------------------------------
 
 export const FONTS = [
-  { id: "manrope", label: "Manrope (default)", cssVar: "--font-manrope", note: "Closest free match to Mark Pro. Capital Ə falls back to a system font." },
-  { id: "inter", label: "Inter", cssVar: "--font-inter", note: "Neutral, very legible at small sizes." },
+  { id: "inter", label: "Inter (default)", cssVar: "--font-inter", note: "Neutral, very legible at small sizes." },
+  { id: "manrope", label: "Manrope", cssVar: "--font-manrope", note: "Closest free match to Mark Pro. Capital Ə falls back to a system font." },
   { id: "noto", label: "Noto Sans", cssVar: "--font-noto", note: "Widest language coverage." },
   { id: "plex", label: "IBM Plex Sans", cssVar: "--font-plex", note: "Technical, slightly condensed." },
 ] as const;
@@ -119,8 +119,17 @@ export type Design = {
   accentRule: boolean;
 };
 
+/**
+ * The 2026 refresh (request: "surprise me... but don't damage the
+ * minimalist Google style, and of course the Azerconnect colour codes").
+ * Colours are untouched -- see DEFAULT_PALETTE above, still exactly
+ * #0f3c76 / #092649 / #356d1b / #044176. What moved is shape and type:
+ * Inter over Manrope, softer 12px corners, tighter compact spacing, and
+ * cards with a soft shadow instead of a hairline border -- closer to
+ * Google's own flat-with-elevation cards than the previous bordered ones.
+ */
 export const DEFAULT_DESIGN: Design = {
-  font: "manrope", radius: 8, border: 1, card: "outlined", density: "comfortable", background: "solid", accentRule: true,
+  font: "inter", radius: 12, border: 1, card: "raised", density: "compact", background: "solid", accentRule: true,
 };
 
 /** A full look: palette for both modes + design. Brand text is separate. */
@@ -163,7 +172,7 @@ export const PRESETS: Array<{ id: string; label: string; description: string; lo
   {
     id: "one-simple",
     label: "One.Simple",
-    description: "The default: cool canvas, white cards, the blue-to-green accent.",
+    description: "The default: cool canvas, softly raised white cards, the blue-to-green accent.",
     look: DEFAULT_LOOK,
   },
   {

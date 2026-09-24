@@ -1,16 +1,61 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Header } from "@/components/Header";
-import { getStrings } from "@/lib/strings";
-import { localePath, toLocale } from "@/lib/i18n";
+import { getStrings, type Strings } from "@/lib/strings";
+import { localePath, toLocale, type Locale } from "@/lib/i18n";
 import { getAssistantUserOrNull, getCurrentUser, hasAuthConfig } from "@/lib/auth";
+import { hasMailConfig } from "@/lib/mailer";
 import { assistantLogin, assistantLogout } from "../actions";
+import { RequestLinkForm } from "./RequestLinkForm";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 const FIELD = "mt-1 w-full rounded-md border px-3 py-2 text-sm outline-none";
 const FIELD_STYLE = { borderColor: "var(--control-border)", background: "var(--surface)" };
+
+/** The email + password form, shared by both branches below (mail configured
+ * or not) so there is exactly one copy to keep in sync. */
+function PasswordForm({
+  locale,
+  a,
+  error,
+  invited,
+}: {
+  locale: Locale;
+  a: Strings["assistant"];
+  error?: string;
+  invited?: string;
+}) {
+  return (
+    <form action={assistantLogin} className="mt-4 space-y-3">
+      <input type="hidden" name="locale" value={locale} />
+      <div>
+        <label htmlFor="email" className="block text-sm" style={{ color: "var(--muted)" }}>{a.email}</label>
+        <input id="email" name="email" type="email" required autoComplete="username"
+          className={FIELD} style={FIELD_STYLE} />
+      </div>
+      <div>
+        <label htmlFor="password" className="block text-sm" style={{ color: "var(--muted)" }}>{a.password}</label>
+        <input id="password" name="password" type="password" required autoComplete="current-password"
+          className={FIELD} style={FIELD_STYLE} />
+      </div>
+      {invited === "1" && !error && (
+        <p className="text-sm" style={{ color: "var(--good)" }}>{a.passwordSet}</p>
+      )}
+      {error === "locked" && (
+        <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>{a.locked}</p>
+      )}
+      {error && error !== "locked" && (
+        <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>{a.signInFailed}</p>
+      )}
+      <button type="submit" className="w-full rounded-md px-4 text-sm font-medium"
+        style={{ minHeight: 44, background: "var(--foreground)", color: "var(--background)" }}>
+        {a.signIn}
+      </button>
+    </form>
+  );
+}
 
 export default async function AssistantLoginPage({
   params,
@@ -48,33 +93,29 @@ export default async function AssistantLoginPage({
               </button>
             </form>
           </>
+        ) : hasMailConfig() ? (
+          <>
+            <RequestLinkForm
+              a={{
+                email: a.email,
+                sending: a.sending,
+                requestSubmit: a.requestSubmit,
+                requestSent: a.requestSent,
+                requestInvalid: a.requestInvalid,
+              }}
+            />
+            <details className="mt-6">
+              <summary className="cursor-pointer text-sm" style={{ color: "var(--muted)" }}>
+                {a.passwordInstead}
+              </summary>
+              <PasswordForm locale={locale} a={a} error={error} invited={invited} />
+            </details>
+          </>
         ) : (
-          <form action={assistantLogin} className="mt-8 space-y-3">
-            <input type="hidden" name="locale" value={locale} />
-            <div>
-              <label htmlFor="email" className="block text-sm" style={{ color: "var(--muted)" }}>{a.email}</label>
-              <input id="email" name="email" type="email" required autoComplete="username"
-                className={FIELD} style={FIELD_STYLE} />
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm" style={{ color: "var(--muted)" }}>{a.password}</label>
-              <input id="password" name="password" type="password" required autoComplete="current-password"
-                className={FIELD} style={FIELD_STYLE} />
-            </div>
-            {invited === "1" && !error && (
-              <p className="text-sm" style={{ color: "var(--good)" }}>{a.passwordSet}</p>
-            )}
-            {error === "locked" && (
-              <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>{a.locked}</p>
-            )}
-            {error && error !== "locked" && (
-              <p role="alert" className="text-sm" style={{ color: "var(--critical)" }}>{a.signInFailed}</p>
-            )}
-            <button type="submit" className="w-full rounded-md px-4 text-sm font-medium"
-              style={{ minHeight: 44, background: "var(--foreground)", color: "var(--background)" }}>
-              {a.signIn}
-            </button>
-          </form>
+          <>
+            <p className="mt-6 text-sm" style={{ color: "var(--muted)" }}>{a.requestUnavailable}</p>
+            <PasswordForm locale={locale} a={a} error={error} invited={invited} />
+          </>
         )}
       </main>
     </>

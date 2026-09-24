@@ -1,5 +1,6 @@
 import { requirePermission } from "@/lib/auth";
-import { getSecurityPolicy, POLICY_BOUNDS, STAFF_DOMAIN } from "@/lib/security-policy";
+import { getSecurityPolicy, POLICY_BOUNDS, staffDomainsLabel } from "@/lib/security-policy";
+import { hasMailConfig } from "@/lib/mailer";
 import { PolicyForm } from "./PolicyForm";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +17,19 @@ export default async function SecurityPage() {
       </p>
       <PolicyForm policy={policy} bounds={POLICY_BOUNDS} />
       <section className="mt-10 rounded-lg border p-4 text-sm" style={{ borderColor: "var(--line)" }}>
-        <p className="font-medium">Staff domain: {STAFF_DOMAIN}</p>
+        <p className="font-medium">Staff domains: {staffDomainsLabel()}</p>
         <p className="mt-1 text-xs" style={{ color: "var(--faint)" }}>
           Fixed by a database constraint — shown here, not editable.
+        </p>
+      </section>
+      <section className="mt-4 rounded-lg border p-4 text-sm" style={{ borderColor: "var(--line)" }}>
+        <p className="font-medium">
+          Self-service email sign-in: {hasMailConfig() ? "Configured" : "Not configured"}
+        </p>
+        <p className="mt-1 text-xs" style={{ color: "var(--faint)" }}>
+          {hasMailConfig()
+            ? "Staff at the domains above can request a sign-in link at /assistant/login without an admin invite."
+            : "Set RESEND_API_KEY (and optionally MAIL_FROM) in the environment to let staff request their own sign-in link by email. Until then, invite staff from Team as usual."}
         </p>
       </section>
     </main>

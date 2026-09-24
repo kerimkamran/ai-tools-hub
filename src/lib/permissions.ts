@@ -85,5 +85,6 @@ export const PUBLIC_SERVER_ACTIONS = [
   "acceptInvite",
   "assistantLogin",
   "assistantLogout",
+  "requestAssistantLink",
   "verifyMfa",
 ] as const;

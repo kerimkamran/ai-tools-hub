@@ -6,27 +6,30 @@ import { buildThemeStyle, getSiteSettings } from "@/lib/settings";
 import { strings } from "@/lib/strings";
 
 /**
- * Manrope: the closest free match to Azerconnect's corporate typeface, Mark
- * Pro, which is proprietary (SparkLab's own source comment says the same).
- * Hierarchy still comes from size, weight and spacing, not from switching
- * faces. next/font self-hosts the files at build time, so there is no
- * runtime request to Google and no extra font-src entry in the CSP.
+ * Inter: the default face (2026 refresh) -- neutral, very legible at small
+ * sizes, close to the "Google style" geometric sans this hub's structure
+ * already follows. Hierarchy still comes from size, weight and spacing, not
+ * from switching faces. next/font self-hosts the files at build time, so
+ * there is no runtime request to Google and no extra font-src entry in the CSP.
  */
-const manrope = Manrope({
+const inter = Inter({
   // cyrillic for the Russian locale (Phase C); Azerbaijani letters (ə, ğ, ı,
   // ş, ç, ö, ü) are covered by latin + latin-ext.
   subsets: ["latin", "latin-ext", "cyrillic"],
-  variable: "--font-manrope",
+  variable: "--font-inter",
   display: "swap",
 });
 
 /**
- * The Design Studio's curated alternatives (capability 9). Each was checked
- * to render Azerbaijani (ə Ə ğ ı İ ş ç ö ü) and Cyrillic before being added.
- * Self-hosted like Manrope; only the default is preloaded, and a browser
+ * The Design Studio's curated alternatives (capability 9), including
+ * Manrope -- the closest free match to Azerconnect's corporate typeface,
+ * Mark Pro, which is proprietary (SparkLab's own source comment says the
+ * same) -- kept as a selectable option. Each was checked to render
+ * Azerbaijani (ə Ə ğ ı İ ş ç ö ü) and Cyrillic before being added.
+ * Self-hosted like Inter; only the default is preloaded, and a browser
  * downloads one of these only when the published look selects it.
  */
-const inter = Inter({ subsets: ["latin", "latin-ext", "cyrillic"], variable: "--font-inter", display: "swap", preload: false });
+const manrope = Manrope({ subsets: ["latin", "latin-ext", "cyrillic"], variable: "--font-manrope", display: "swap", preload: false });
 const noto = Noto_Sans({ subsets: ["latin", "latin-ext", "cyrillic"], variable: "--font-noto", display: "swap", preload: false });
 const plex = IBM_Plex_Sans({
   subsets: ["latin", "latin-ext", "cyrillic"],

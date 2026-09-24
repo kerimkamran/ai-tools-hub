@@ -51,17 +51,21 @@
 
   --focus: var(--primary);
 
-  /* Design Studio (capability 9). Defaults = the look before the studio
-     existed; the studio's published look overrides them from the layout's
-     <style> block. Values are only ever from fixed lists (src/lib/design.ts). */
-  --font-active: var(--font-manrope);
-  --radius: 8px;
+  /* Design Studio (capability 9), 2026 refresh. These defaults are what a
+     visitor sees before any theme has been published from the studio -- the
+     studio's published look overrides them from the layout's <style> block,
+     and must stay in exact agreement with DEFAULT_DESIGN in
+     src/lib/design.ts, which computes the same values. Values are only ever
+     from fixed lists (src/lib/design.ts): softer corners, tighter spacing,
+     softly raised cards -- still Google-simple, still Azerconnect's colours. */
+  --font-active: var(--font-inter);
+  --radius: 12px;
   --bw: 1px;
   --card-border: var(--line);
-  --card-shadow: none;
-  --card-shadow-hover: var(--shadow-sm);
-  --card-pad: 16px;
-  --grid-gap: 16px;
+  --card-shadow: var(--shadow-md);
+  --card-shadow-hover: 0 6px 18px rgba(0, 0, 0, 0.12);
+  --card-pad: 12px;
+  --grid-gap: 10px;
   --accent-display: block;
   --page-bg: var(--background);
 }

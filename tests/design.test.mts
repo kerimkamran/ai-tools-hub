@@ -2,7 +2,7 @@
  * Phase 4 gate (Design Studio): every preset passes the contrast gate, a
  * failing palette is caught, and nothing but validated values reaches CSS.
  */
-import { gate, lookCss, PRESETS, sanitizeLook, DEFAULT_LOOK, secondaryTokens, DEFAULT_PALETTE } from "@/lib/design";
+import { gate, lookCss, PRESETS, sanitizeLook, DEFAULT_LOOK, DEFAULT_DESIGN, secondaryTokens, DEFAULT_PALETTE } from "@/lib/design";
 
 let fails = 0;
 const check = (name: string, ok: boolean, extra?: unknown) => {
@@ -23,7 +23,14 @@ const evil = sanitizeLook({
   design: { font: "comic;}", radius: 999, card: "<script>", background: "url(x)", accentRule: "yes" },
 });
 check("invalid hex falls back", evil.light.primary === DEFAULT_LOOK.light.primary && evil.light.text === DEFAULT_LOOK.light.text);
-check("unknown design values fall back", evil.design.font === "manrope" && evil.design.radius === 8 && evil.design.card === "outlined" && evil.design.background === "solid" && evil.design.accentRule === true);
+check(
+  "unknown design values fall back",
+  evil.design.font === DEFAULT_DESIGN.font &&
+    evil.design.radius === DEFAULT_DESIGN.radius &&
+    evil.design.card === DEFAULT_DESIGN.card &&
+    evil.design.background === DEFAULT_DESIGN.background &&
+    evil.design.accentRule === DEFAULT_DESIGN.accentRule
+);
 const css = lookCss(evil);
 check("CSS contains no injected text", !/display:none|script|url\(|comic/.test(css));
 check("CSS is only custom properties", css.replace(/:root(\.dark)?\{[^}]*\}/g, "") === "");

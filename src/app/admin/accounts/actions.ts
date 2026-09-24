@@ -8,7 +8,7 @@ import { can } from "@/lib/permissions";
 import { isSuperAdminEmail, resolveRole } from "@/lib/roles";
 import { audit } from "@/lib/audit";
 import { bumpSessionVersion, createAccountLink } from "@/lib/accounts";
-import { STAFF_DOMAIN } from "@/lib/security-policy";
+import { isStaffDomain, staffDomainsLabel } from "@/lib/security-policy";
 
 /**
  * Accounts (capability 1). Every action here:
@@ -112,8 +112,8 @@ export async function addAccount(_prev: AccountState, formData: FormData): Promi
   if (isSuperAdminEmail(email.data)) {
     return { error: "That address is a super admin, set via configuration." };
   }
-  if (role.data === "staff" && !email.data.endsWith(STAFF_DOMAIN)) {
-    return { error: `Staff accounts are for ${STAFF_DOMAIN} addresses only.` };
+  if (role.data === "staff" && !isStaffDomain(email.data)) {
+    return { error: `Staff accounts are for ${staffDomainsLabel()} addresses only.` };
   }
 
   const link = await transaction(async (tx) => {
@@ -150,10 +150,10 @@ export async function bulkAddStaff(_prev: AccountState, formData: FormData): Pro
   ];
   if (list.length === 0) return { error: "Paste at least one email address." };
   if (list.length > 200) return { error: "At most 200 addresses at a time." };
-  const bad = list.filter((e) => !emailSchema.safeParse(e).success || !e.endsWith(STAFF_DOMAIN));
+  const bad = list.filter((e) => !emailSchema.safeParse(e).success || !isStaffDomain(e));
   if (bad.length) {
     return {
-      error: `Not ${STAFF_DOMAIN} addresses: ${bad.slice(0, 5).join(", ")}${bad.length > 5 ? "…" : ""}`,
+      error: `Not ${staffDomainsLabel()} addresses: ${bad.slice(0, 5).join(", ")}${bad.length > 5 ? "…" : ""}`,
     };
   }
 
@@ -209,8 +209,8 @@ export async function updateAccount(_prev: AccountState, formData: FormData): Pr
   if (roleChange && !can(actor.role, "accounts.manage")) {
     return { error: "Only a super admin can change roles." };
   }
-  if (roleChange === "staff" && !target.endsWith(STAFF_DOMAIN)) {
-    return { error: `Staff accounts are for ${STAFF_DOMAIN} addresses only.` };
+  if (roleChange === "staff" && !isStaffDomain(target)) {
+    return { error: `Staff accounts are for ${staffDomainsLabel()} addresses only.` };
   }
   if (status === "disabled" && (self || envSuper)) {
     return {

@@ -37,38 +37,51 @@ function Wordmark({ settings }: { settings: SiteSettings }) {
 }
 
 /**
- * Plain links, no JavaScript -- so switching language keeps working with JS
- * disabled like the rest of the page. Each link points at the SAME page in
- * the other locale, not at that locale's home.
+ * One control, not three -- a native <details> disclosure, so it needs no
+ * JavaScript (same reasoning as the plain links it replaces: this keeps
+ * working with JS disabled) and no client component. Each entry still
+ * points at the SAME page in the other locale, not at that locale's home.
  */
 function LanguageSwitcher({ locale, path }: { locale: Locale; path: string }) {
   const t = getStrings(locale);
   return (
-    <nav aria-label={t.language} className="flex items-center">
-      {LOCALES.map((loc) => {
-        const current = loc === locale;
-        return (
-          <Link
-            key={loc}
-            href={localePath(loc, path)}
-            hrefLang={LOCALE_HREFLANG[loc]}
-            lang={LOCALE_HREFLANG[loc]}
-            aria-current={current ? "page" : undefined}
-            aria-label={LOCALE_NATIVE_NAME[loc]}
-            className="flex items-center justify-center rounded text-xs font-semibold hover:opacity-70"
-            style={{
-              minWidth: 32,
-              height: 44,
-              color: current ? "var(--foreground)" : "var(--muted)",
-              textDecoration: current ? "underline" : "none",
-              textUnderlineOffset: 4,
-            }}
-          >
-            {LOCALE_LABEL[loc]}
-          </Link>
-        );
-      })}
-    </nav>
+    <details className="group relative">
+      <summary
+        aria-label={t.language}
+        className="flex list-none items-center justify-center gap-0.5 rounded px-2 text-xs font-semibold hover:opacity-70 [&::-webkit-details-marker]:hidden"
+        style={{ minWidth: 44, height: 44, color: "var(--muted)" }}
+      >
+        {LOCALE_LABEL[locale]}
+        <span aria-hidden="true" className="text-[9px]">▾</span>
+      </summary>
+      <nav
+        aria-label={t.language}
+        className="absolute right-0 z-20 mt-1 flex flex-col overflow-hidden rounded-md border"
+        style={{ borderColor: "var(--line)", background: "var(--surface)", minWidth: 128, boxShadow: "var(--shadow-md)" }}
+      >
+        {LOCALES.map((loc) => {
+          const current = loc === locale;
+          return (
+            <Link
+              key={loc}
+              href={localePath(loc, path)}
+              hrefLang={LOCALE_HREFLANG[loc]}
+              lang={LOCALE_HREFLANG[loc]}
+              aria-current={current ? "page" : undefined}
+              className="flex items-center px-3 text-sm hover:opacity-70"
+              style={{
+                minHeight: 44,
+                color: current ? "var(--foreground)" : "var(--muted)",
+                fontWeight: current ? 600 : 400,
+                background: current ? "var(--surface-sunken)" : "transparent",
+              }}
+            >
+              {LOCALE_NATIVE_NAME[loc]}
+            </Link>
+          );
+        })}
+      </nav>
+    </details>
   );
 }
 

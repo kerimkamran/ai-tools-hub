@@ -30,8 +30,22 @@ export const POLICY_BOUNDS = {
   lockoutMinutes: [5, 120],
 } as const;
 
-/** Fixed, shown in the panel, never editable (a CHECK constraint on staff_users). */
-export const STAFF_DOMAIN = "@azerconnect.az";
+/**
+ * Fixed, shown in the panel, never editable (a CHECK constraint on
+ * staff_users -- see db/migrations/0011_staff_domains.sql). One Azerconnect
+ * Group address per domain family; staff sign-in (and the self-service
+ * email link) is open to any of them.
+ */
+export const STAFF_DOMAINS = ["@azerconnect.az", "@uninet.az", "@ultranet.az", "@goldenpay.az"] as const;
+
+export function isStaffDomain(email: string): boolean {
+  const e = email.trim().toLowerCase();
+  return STAFF_DOMAINS.some((d) => e.endsWith(d));
+}
+
+export function staffDomainsLabel(): string {
+  return STAFF_DOMAINS.join(", ");
+}
 
 type Row = {
   idle_minutes: number;
